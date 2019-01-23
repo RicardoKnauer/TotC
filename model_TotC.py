@@ -30,6 +30,8 @@ class Sheep(RandomWalker):
 
     def __init__(self, unique_id, model, pos):
         super().__init__(unique_id, model, pos)
+        self.saturation = 1
+        self.owner = None
 
     def step(self):
         """
@@ -41,12 +43,23 @@ class Sheep(RandomWalker):
             if isinstance(agent, Grass):
                 # valid choice???
                 if agent.density > 0.1:
+                    self.saturation += agent.density
                     agent.fade()
                     grass_eaten = True
+
                     break
+
         # valid choice???
         if not grass_eaten:
             self.random_move()
+            self.saturation -= 0.4
+
+        if self.saturation < 0:
+            self.die()
+
+    def die(self):
+        self.model.remove_agent(self)
+        self.owner.stock.remove(self)
 
 
 class Grass(Agent):
@@ -72,7 +85,7 @@ class Grass(Agent):
         Grass regrows logistically.
         """
         # growth rate ok???
-        self.density += 0.05 * (1 - self.density) * self.density
+        self.density += 0.07 * (1 - self.density) * self.density
 
 
 class Herdsman(Agent):
@@ -82,6 +95,67 @@ class Herdsman(Agent):
 
         self.pos = pos
         self.unique_id = unique_id
+        self.stock = []
+
+        self.l_coop = random.random()
+        self.l_fairself = random.random()
+        self.l_fairother = random.random()
+        self.l_negrecip = random.random()
+        self.l_posrecip = random.random()
+        self.l_conf = random.random()
+        self.l_risk = random.random()
+
+        for i in range(model.initial_sheep_per_herdsmen):
+            self.add_sheep()
+
+
+    def add_sheep(self):
+        x = random.randrange(self.model.width)
+        y = random.randrange(self.model.height)
+        sheep = self.model.new_agent(Sheep, (x, y))
+        self.stock.append(sheep)
+        sheep.owner = self
+
+
+    def step(self):
+        if self.should_buy_sheep():
+            self.add_sheep()
+
+
+    def should_buy_sheep(self):
+        # x is the consequence of the action
+        # it can be -1 (negative), 0 (neutral), or 1 (positive)
+        # (as described in Schindler)
+        x = 1
+        return self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
+
+    def p_coop(self, x):
+        basicsum = 0
+        for herdsman in self.model.herdsmen:
+            herdsman.p_basic(x)
+
+        return (1 - self.l_coop) * self.p_basic(x) + self.l_coop * basicsum
+
+    def p_basic(self, x):
+        return self.model.get_sheep_count() / 100
+
+    def add_fair(self, x):
+        sumA, sumB, sumC = 0, 0, 0
+        for herdsman in self.model.herdsmen:
+            if herdsman is not self:
+                sumA = sumA + max(herdsman.p_basic(x) - self.p_basic(x), 0)
+                sumB = sumB + max(0, self.p_basic(x) - herdsman.p_basic(x))
+                sumC = sumC + herdsman.p_basic(x)
+        return (-self.l_fairself * sumA - self.l_fairother * sumB) / sumC * self.p_basic(x)
+
+    def add_recip(self, x):
+        return 0
+
+    def add_conf(self, x):
+        return 0
+
+    def add_risk(self, x):
+        return 0
 
 
 class TotC(Model):
@@ -92,7 +166,8 @@ class TotC(Model):
         self.width = height
         self.initial_herdsmen = initial_herdsmen
         self.initial_sheep_per_herdsmen = initial_sheep_per_herdsmen
-        self.stock = {}
+        self.herdsmen = []
+        self.grass = []
 
         self.schedule_Grass = RandomActivation(self)
         self.schedule_Herdsman = RandomActivation(self)
@@ -100,28 +175,44 @@ class TotC(Model):
 
         self.grid = MultiGrid(self.width, self.height, torus=True)
         self.datacollector = DataCollector(
-            {"Grass": lambda m: self.schedule_Grass.get_agent_count(),
+            {"Grass": lambda m: sum([grass.density for grass in self.grass]),
              "Sheep": lambda m: self.schedule_Sheep.get_agent_count()})
 
-        self.init_population(Grass)
-        self.init_population(Herdsman)
+        self.init_population()
 
         # required for the datacollector to work
         self.running = True
         self.datacollector.collect(self)
 
-    def init_population(self, agent_type, n=0):
-        """
-        Initialize population.
-        """
-        if agent_type is Grass:
-            for agent, x, y in self.grid.coord_iter():
-                self.new_agent(agent_type, (x, y))
-        elif agent_type is Herdsman:
-            for i in range(getattr(self, "initial_herdsmen")):
-                x = random.randrange(self.width)
-                y = random.randrange(self.height)
-                self.new_agent(agent_type, (x, y))
+
+    def get_herdsman_count(self):
+        return self.schedule_Herdsman.get_agent_count()
+
+
+    def get_sheep_count(self):
+        return self.schedule_Sheep.get_agent_count()
+
+
+    def init_population(self):
+        self.init_grass()
+        self.init_herdsman()
+
+
+    def init_grass(self):
+        for agent, x, y in self.grid.coord_iter():
+            self.grass.append(self.new_agent(Grass, (x, y)))
+
+
+    def init_herdsman(self):
+        for i in range(getattr(self, "initial_herdsmen")):
+            self.add_herdsman()
+
+
+    def add_herdsman(self):
+        x = random.randrange(self.width)
+        y = random.randrange(self.height)
+        herdsman = self.new_agent(Herdsman, (x, y))
+        self.herdsmen.append(herdsman)
 
 
     def new_agent(self, agent_type, pos):
@@ -129,17 +220,10 @@ class TotC(Model):
         Create new agent, and add it to the scheduler.
         """
         agent = agent_type(self.next_id(), self, pos)
-        if agent_type is Herdsman:
-            self.stock[getattr(agent, "unique_id")] = []
-            for i in range(getattr(self, "initial_sheep_per_herdsmen")):
-                x = random.randrange(self.width)
-                y = random.randrange(self.height)
-                sheep_id = self.new_agent(Sheep, (x, y))
-                self.stock[getattr(agent, "unique_id")].append(sheep_id)
         self.grid.place_agent(agent, pos)
         getattr(self, f"schedule_{agent_type.__name__}").add(agent)
 
-        return getattr(agent, "unique_id")
+        return agent
 
     # not yet needed...
     def remove_agent(self, agent):

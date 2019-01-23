@@ -1,6 +1,7 @@
 import IPython
 import os
 import sys
+from model_TotC import *
 from mesa.visualization.modules import CanvasGrid
 from mesa.visualization.ModularVisualization import ModularServer
 from mesa.visualization.modules import ChartModule
