@@ -6,6 +6,11 @@ from mesa.visualization.modules import CanvasGrid
 from mesa.visualization.ModularVisualization import ModularServer
 from mesa.visualization.modules import ChartModule
 
+from mesa.visualization.TextVisualization import TextData
+from mesa.visualization.UserParam import UserSettableParameter
+
+v_slider = UserSettableParameter('slider', "Number of Herdsman", 5, 1, 10, 1)
+e_slider = UserSettableParameter('slider', "Number of Edges [max. (V*(V-1)/2]", 5, 0, 45, 1)
 
 # change stdout so most prints etc. can be ignored
 orig_stdout = sys.stdout
@@ -15,7 +20,11 @@ sys.stdout = orig_stdout
 
 
 def agent_portrayal(agent):
-    portrayal = {"Shape": "circle",
+    if type(agent) is Herdsman:
+        portrayal = {"Shape": "rect",
+                     "Filled": "true"}
+    else:
+        portrayal = {"Shape": "circle",
                  "Filled": "true"}
 
     if type(agent) is Grass:
@@ -59,7 +68,7 @@ chart = ChartModule([{"Label": "Grass",
 server = ModularServer(TotC,
                        [grid, chart],
                        "Tragedy of the Commons Model",
-                       {})
+                       {"initial_herdsmen": v_slider, "initial_edges": e_slider})
 
 server.port = 8521
 
