@@ -5,6 +5,9 @@ from mesa.datacollection import DataCollector
 from mesa.space import MultiGrid
 from mesa.time import RandomActivation
 
+import networkx as nx
+from mesa.space import NetworkGrid
+
 GROWTH_RATE = 1.03 # Grass regrowth rate
 REQU = 1 # Amount of grass a sheep needs to eat in one timestep
 MAX_STEPS = 5 # Maximum amount of steps a sheep can do in one timestep
@@ -100,6 +103,14 @@ class Herdsman(Agent):
         self.a = []
         # Number of cattle owned at each timestep
         self.k = []
+        
+        # 3 is random init to see if it works
+        self.degree = 3
+        self.betwcent = 3
+        # lists for shortest paths and common neighbors
+        self.sp = []
+        self.cn = []
+
 
         for i in range(model.initial_sheep_per_herdsmen):
             self.add_sheep()
@@ -198,7 +209,7 @@ class Herdsman(Agent):
 
 class TotC(Model):
 
-    def __init__(self, width=33, height=33, initial_herdsmen=5, initial_sheep_per_herdsmen=5):
+    def __init__(self, width=33, height=33, initial_herdsmen=5, initial_sheep_per_herdsmen=5, initial_edges=5):
         super().__init__()
         self.height = width
         self.width = height
@@ -206,6 +217,12 @@ class TotC(Model):
         self.initial_sheep_per_herdsmen = initial_sheep_per_herdsmen
         self.herdsmen = []
         self.grass = []
+        
+        self.G = nx.gnm_random_graph(initial_herdsmen, initial_edges)
+        # or G = nx.erdos_renyi_graph(n, p)
+        self.edgelist = self.G.edges
+        self.nodelist = self.G.nodes
+        self.unique_id_list = []
 
         self.schedule_Grass = RandomActivation(self)
         self.schedule_Herdsman = RandomActivation(self)
@@ -253,9 +270,25 @@ class TotC(Model):
         y = random.randrange(self.height)
         herdsman = self.new_agent(Herdsman, (x, y))
         self.herdsmen.append(herdsman)
+        # get list of herdsman IDs
+        self.unique_id_list.append(herdsman.unique_id)
 
     def get_herdsman(self, j):
         return self.herdsmen[j]
+    
+    # giving the nodes of the graph the unique herdsman IDs as attribute
+    def init_node_attr(self):
+        for i in range(getattr(self, "initial_herdsmen")):
+            self.G.nodes[i]['herds_id'] = self.unique_id_list[i]
+
+
+    # giving the initialized herdsman the graph attributes
+    def init_herds_attr(self):
+        for herdsman in self.herdsmen:
+            for i in range(getattr(self, "initial_herdsmen")):
+                if self.G.nodes[i]['herds_id'] == herdsman.unique_id:
+                    herdsman.degree = self.G.degree[i]
+
 
 
     def new_agent(self, agent_type, pos):
