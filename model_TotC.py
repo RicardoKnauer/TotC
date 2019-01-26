@@ -253,6 +253,9 @@ class TotC(Model):
     def init_population(self):
         self.init_grass()
         self.init_herdsman()
+        self.init_node_attr()
+        self.init_herds_attr()
+
 
 
     def init_grass(self):
@@ -280,6 +283,8 @@ class TotC(Model):
     def init_node_attr(self):
         for i in range(getattr(self, "initial_herdsmen")):
             self.G.nodes[i]['herds_id'] = self.unique_id_list[i]
+            for j in range(getattr(self, "initial_herdsmen")):
+                self.shortest_paths_list.append(nx.shortest_path_length(self.G, source=i, target=j))
 
 
     # giving the initialized herdsman the graph attributes
