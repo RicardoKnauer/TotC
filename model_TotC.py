@@ -9,14 +9,14 @@ import networkx as nx
 from mesa.space import NetworkGrid
 import matplotlib.pyplot as plt
 
-GROWTH_RATE = 1.03 # Grass regrowth rate
+GROWTH_RATE = 0.0496 # Grass regrowth rate
 REQU = 1 # Amount of grass a sheep needs to eat in one timestep
 MAX_STEPS = 5 # Maximum amount of steps a sheep can do in one timestep
 P = 133
 GRIDSIZE = 33
 
 def g(grass):
-    return grass * (1 + (GROWTH_RATE * grass * (1 - grass / (GRIDSIZE ** 2))))
+    return grass * (1 + (GROWTH_RATE * grass * (1 - (grass / 1089))))
 
 class RandomWalker(Agent):
 
@@ -86,8 +86,10 @@ class Grass(Agent):
         """
         Grass regrows logistically.
         """
-        self.density = min(1, g(self.density))
+        self.density += self.next_density()
 
+    def next_density(self):
+        return GROWTH_RATE * self.density * (1 - self.density)
 
 class Herdsman(Agent):
 
@@ -131,6 +133,8 @@ class Herdsman(Agent):
 
 
     def remove_sheep(self):
+        if len(self.stock) == 0:
+            return
         sheep = self.stock.pop()
         self.model.remove_agent(sheep)
 
@@ -241,14 +245,18 @@ class TotC(Model):
         self.grid = MultiGrid(self.width, self.height, torus=True)
         # Grass is actually number of sheep grass can support
         self.datacollector = DataCollector(
-            {"Grass": lambda m: self.get_grass_count() * (GROWTH_RATE - 1),
+            {"Grass": lambda m: self.get_expected_grass_growth() / REQU,
              "Sheep": lambda m: self.get_sheep_count()})
 
         self.init_population()
-
+        print('running')
         # required for the datacollector to work
         self.running = True
         self.datacollector.collect(self)
+
+    # Expected grass growth
+    def get_expected_grass_growth(self):
+        return sum([grass.next_density() for grass in self.grass])
 
     def get_grass_count(self):
         return sum([grass.density for grass in self.grass])
@@ -349,14 +357,14 @@ class TotC(Model):
         self.datacollector.collect(self)
 
 
-test=TotC()
-test.run_model()
-print(test.height)
-print(test.nodelist)
-print(test.edgelist)
-print(test.G[0])
-print(test.shortest_paths_list)
-print(len(test.shortest_paths_list))
-print(test.herdsmen[1].shortest_paths)
-nx.draw(test.G, pos=nx.circular_layout(test.G), nodecolor='r', edgecolor= 'b')
-plt.show()
+# test=TotC()
+# test.run_model()
+# print(test.height)
+# print(test.nodelist)
+# print(test.edgelist)
+# print(test.G[0])
+# print(test.shortest_paths_list)
+# print(len(test.shortest_paths_list))
+# print(test.herdsmen[1].shortest_paths)
+# nx.draw(test.G, pos=nx.circular_layout(test.G), nodecolor='r', edgecolor= 'b')
+# plt.show()
