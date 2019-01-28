@@ -12,6 +12,11 @@ import matplotlib.pyplot as plt
 GROWTH_RATE = 1.03 # Grass regrowth rate
 REQU = 1 # Amount of grass a sheep needs to eat in one timestep
 MAX_STEPS = 5 # Maximum amount of steps a sheep can do in one timestep
+P = 133
+GRIDSIZE = 33
+
+def g(grass):
+    return grass * (1 + (GROWTH_RATE * grass * (1 - grass / (GRIDSIZE ** 2))))
 
 class RandomWalker(Agent):
 
@@ -81,7 +86,7 @@ class Grass(Agent):
         """
         Grass regrows logistically.
         """
-        self.density = min(1, self.density*GROWTH_RATE)
+        self.density = min(1, g(self.density))
 
 
 class Herdsman(Agent):
@@ -152,15 +157,17 @@ class Herdsman(Agent):
     def p_coop(self, x):
         basicsum = 0
         for herdsman in self.model.herdsmen:
-            basicsum = basicsum + herdsman.p_basic(x)
+            basicsum = basicsum + herdsman.p_basic(x) * herdsman.l_coop
 
-        return (1 - self.l_coop) * self.p_basic(x) + self.l_coop * basicsum
+        return (1 - self.l_coop) * self.p_basic(x) + basicsum
 
     def p_basic(self, x):
+        N = self.model.get_herdsman_count()
         grass = self.model.get_grass_count()
         sheep = self.model.get_sheep_count()
 
-        return max(0, grass - sheep * REQU) - max(0, grass - (sheep + x) * REQU)
+        cost = g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x) * REQU)) * P / REQU
+        return (len(self.k) + x) * P - (cost / N)
 
     def add_fair(self, x):
         sumA, sumB, sumC = 0, 0, 0
@@ -210,10 +217,10 @@ class Herdsman(Agent):
 
 class TotC(Model):
 
-    def __init__(self, width=33, height=33, initial_herdsmen=5, initial_sheep_per_herdsmen=5, initial_edges=5):
+    def __init__(self, initial_herdsmen=5, initial_sheep_per_herdsmen=5, initial_edges=5):
         super().__init__()
-        self.height = width
-        self.width = height
+        self.width = GRIDSIZE
+        self.height = GRIDSIZE
         self.initial_herdsmen = initial_herdsmen
         self.initial_sheep_per_herdsmen = initial_sheep_per_herdsmen
         self.herdsmen = []

@@ -58,7 +58,7 @@ def agent_portrayal(agent):
 
 
 # create a grid of 33 by 33 cells, and display it as 500 by 500 pixels
-grid = CanvasGrid(agent_portrayal, 33, 33, 500, 500)
+grid = CanvasGrid(agent_portrayal, 500, 500)
 
 # create dynamic linegraph
 chart = ChartModule([{"Label": "Grass",
