@@ -3,7 +3,7 @@ from mesa import Agent
 from mesa import Model
 from mesa.datacollection import DataCollector
 from mesa.space import MultiGrid
-from mesa.time import RandomActivation
+from mesa.time import RandomActivation, BaseScheduler
 
 import networkx as nx
 from mesa.space import NetworkGrid
@@ -11,12 +11,13 @@ import matplotlib.pyplot as plt
 
 GROWTH_RATE = 0.0496 # Grass regrowth rate
 REQU = 1 # Amount of grass a sheep needs to eat in one timestep
-MAX_STEPS = 5 # Maximum amount of steps a sheep can do in one timestep
+MAX_STEPS = 50 # Maximum amount of steps a sheep can do in one timestep
 P = 133
 GRIDSIZE = 33
 
 def g(grass):
-    return grass * (1 + (GROWTH_RATE * grass * (1 - (grass / 1089))))
+    #return grass * (1 + (GROWTH_RATE * grass * (1 - (grass / 1089))))
+    return grass + (GROWTH_RATE * grass * (1089 - grass) / 1089)
 
 class RandomWalker(Agent):
 
@@ -55,7 +56,9 @@ class Sheep(RandomWalker):
             grass_eaten = False
             for agent in this_cell:
                 if isinstance(agent, Grass):
-                    saturation += agent.fade()
+                    if agent.density > 0.75:
+                        agent.fade()
+                        saturation += 1
             self.random_move()
             i += 1
         if saturation < REQU:
@@ -137,15 +140,16 @@ class Herdsman(Agent):
         sheep = self.stock.pop()
         self.model.remove_agent(sheep)
 
+    def advance(self):
+        self.decision = self.decide()
 
     def step(self):
-        decision = self.decide()
-        if decision > 0:
+        if self.decision > 0:
             self.add_sheep()
-        elif decision < 0:
+        elif self.decision < 0:
             self.remove_sheep()
 
-        self.a.append(decision)
+        self.a.append(self.decision)
 
 
     def decide(self):
@@ -160,7 +164,7 @@ class Herdsman(Agent):
     def p_coop(self, x):
         basicsum = 0
         for herdsman in self.model.herdsmen:
-            basicsum = basicsum + herdsman.p_basic(x) * herdsman.l_coop
+            basicsum = basicsum + herdsman.p_basic(0) * herdsman.l_coop
 
         return (1 - self.l_coop) * self.p_basic(x) + basicsum
 
@@ -169,15 +173,15 @@ class Herdsman(Agent):
         grass = self.model.get_grass_count()
         sheep = self.model.get_sheep_count()
 
-        cost = g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x) * REQU)) * P / REQU
+        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x) * REQU))) * P / REQU
         return (len(self.k) + x) * P - (cost / N)
 
     def add_fair(self, x):
         sumA, sumB, sumC = 0, 0, 0
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
-                sumA = sumA + max(herdsman.p_basic(x) - self.p_basic(x), 0)
-                sumB = sumB + max(0, self.p_basic(x) - herdsman.p_basic(x))
+                sumA = sumA + max(herdsman.p_basic(0) - self.p_basic(x), 0)
+                sumB = sumB + max(0, self.p_basic(x) - herdsman.p_basic(0))
                 sumC = sumC + herdsman.p_basic(x)
         return (-self.l_fairself * sumA - self.l_fairother * sumB) / sumC * self.p_basic(x) if sumC > 0 else 0
 
@@ -220,6 +224,17 @@ class Herdsman(Agent):
         return 0
 
 
+class RandomSimultaneousActivation(BaseScheduler):
+    def step(self):
+        random.shuffle(self.agents)
+        for agent in self.agents[:]:
+            agent.advance()
+        for agent in self.agents[:]:
+            agent.step()
+        self.steps += 1
+        self.time += 1
+
+
 class TotC(Model):
 
     def __init__(self, initial_herdsmen=5, initial_sheep_per_herdsmen=5, initial_edges=5):
@@ -238,13 +253,13 @@ class TotC(Model):
         self.unique_id_list = []
 
         self.schedule_Grass = RandomActivation(self)
-        self.schedule_Herdsman = RandomActivation(self)
+        self.schedule_Herdsman = RandomSimultaneousActivation(self)
         self.schedule_Sheep = RandomActivation(self)
 
         self.grid = MultiGrid(self.width, self.height, torus=True)
         # Grass is actually number of sheep grass can support
         self.datacollector = DataCollector(
-            {"Grass": lambda m: self.get_expected_grass_growth() / REQU,
+            {"Grass": lambda m: self.get_expected_grass_growth() / REQU / 0.65,
              "Sheep": lambda m: self.get_sheep_count()})
 
         self.init_population()
