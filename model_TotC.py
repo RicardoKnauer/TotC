@@ -181,10 +181,12 @@ class Herdsman(Agent):
 
     def p_coop(self, x):
         basicsum = 0
+        count = 0
         for herdsman in self.model.herdsmen:
-            basicsum = basicsum + herdsman.p_basic(x) * herdsman.l_coop
-
-        return (1 - self.l_coop) * self.p_basic(x) + basicsum
+            if herdsman is not self:
+                basicsum = basicsum + self.friendship_weights[count] * herdsman.p_basic(x)
+                count += 1
+        return (1 - self.l_coop) * self.p_basic(x) + basicsum * self.l_coop / sum(self.friendship_weights)
 
     def p_basic(self, x):
         N = self.model.get_herdsman_count()
@@ -196,28 +198,32 @@ class Herdsman(Agent):
 
     def add_fair(self, x):
         sumA, sumB, sumC = 0, 0, 0
+        count = 0
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
                 sumA = sumA + max(herdsman.p_basic(x) - self.p_basic(x), 0)
-                sumB = sumB + max(0, self.p_basic(x) - herdsman.p_basic(x))
+                sumB = sumB + self.friendship_weights[count] * max(0, self.p_basic(x) - herdsman.p_basic(x))
                 sumC = sumC + herdsman.p_basic(x)
-        return (-self.l_fairself * sumA - self.l_fairother * sumB) / sumC * self.p_basic(x) if sumC > 0 else 0
+                count += 1
+        return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights)) / sumC * self.p_basic(x) if sumC > 0 else 0
 
     def add_recip(self, x):
         N = self.model.get_herdsman_count()
         sumNeg, sumNeut, sumPos = 0, 0, 0
+        count = 0
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
-                sumNeg  = sumNeg  + self.s(-1, herdsman, -1)
-                sumNeut = sumNeut + self.s( 0, herdsman, -1)
-                sumPos  = sumPos  + self.s( 1, herdsman, -1)
+                sumNeg  = sumNeg  + self.friendship_weights[count] * self.s(-1, herdsman, -1)
+                sumNeut = sumNeut + self.friendship_weights[count] * self.s( 0, herdsman, -1)
+                sumPos  = sumPos  + self.friendship_weights[count] * self.s( 1, herdsman, -1)
+                count += 1
 
         if x[self.index] < 0:
-            return self.p_basic(x) * self.l_negrecip * (sumNeg + 0.5 * sumNeut) / (N-1)
+            return self.p_basic(x) * self.l_negrecip * (sumNeg + 0.5 * sumNeut) / sum(self.friendship_weights)
         elif x[self.index] > 0:
-            return self.p_basic(x) * self.l_posrecip * (sumPos + 0.5 * sumNeut) / (N-1)
+            return self.p_basic(x) * self.l_posrecip * (sumPos + 0.5 * sumNeut) / sum(self.friendship_weights)
         else:
-            return self.p_basic(x) * 0.5 * (self.l_negrecip * (sumNeg + 0.5 * sumNeut) + self.l_posrecip * (sumPos + 0.5 * sumNeut)) / (N-1)
+            return self.p_basic(x) * 0.5 * (self.l_negrecip * (sumNeg + 0.5 * sumNeut) + self.l_posrecip * (sumPos + 0.5 * sumNeut)) / sum(self.friendship_weights)
 
     # d : { -1, 0, 1 } (in Schindler: neg, neut, pos)
     # h: herdsman
@@ -230,12 +236,12 @@ class Herdsman(Agent):
             return 0
         N = self.model.get_herdsman_count()
         sumA = 0
-        index = 0
+        count = 0
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
                 for t in range(len(self.a)):
-                    sumA = sumA + self.friendship_weights[index] * self.s(x, herdsman, t)
-                index += 1
+                    sumA = sumA + self.friendship_weights[count] * self.s(x, herdsman, t)
+                count += 1
         return self.p_basic(x) * self.l_conf * sumA / (len(self.a) * sum(self.friendship_weights))
 
     def add_risk(self, x):

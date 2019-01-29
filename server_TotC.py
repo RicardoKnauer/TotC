@@ -42,12 +42,12 @@ def agent_portrayal(agent):
             portrayal["r"] = 0.5
 
     elif type(agent) is Herdsman:
-        portrayal["Color"] = "red"
+        portrayal["Color"] = "black"
         portrayal["Layer"] = 1
         portrayal["w"] = .9
         portrayal["h"] = .9
-        #portrayal["text"] = agent.unique_id
-        #portrayal["text_color"] = "white"
+        portrayal["text"] = 'A'
+        portrayal["text_color"] = "white"
 
     elif type(agent) is Sheep:
         portrayal["Color"] = "blue"
