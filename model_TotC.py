@@ -3,7 +3,7 @@ from mesa import Agent
 from mesa import Model
 from mesa.datacollection import DataCollector
 from mesa.space import MultiGrid
-from mesa.time import RandomActivation
+from mesa.time import RandomActivation, BaseScheduler
 
 import networkx as nx
 from mesa.space import NetworkGrid
@@ -141,15 +141,16 @@ class Herdsman(Agent):
         sheep = self.stock.pop()
         self.model.remove_agent(sheep)
 
+    def advance(self):
+        self.decision = self.decide()
 
     def step(self):
-        decision = self.decide()
-        if decision > 0:
+        if self.decision > 0:
             self.add_sheep()
-        elif decision < 0:
+        elif self.decision < 0:
             self.remove_sheep()
 
-        self.a.append(decision)
+        self.a.append(self.decision)
 
 
     def decide(self):
@@ -180,8 +181,8 @@ class Herdsman(Agent):
         sumA, sumB, sumC = 0, 0, 0
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
-                sumA = sumA + max(herdsman.p_basic(x) - self.p_basic(x), 0)
-                sumB = sumB + max(0, self.p_basic(x) - herdsman.p_basic(x))
+                sumA = sumA + max(herdsman.p_basic(0) - self.p_basic(x), 0)
+                sumB = sumB + max(0, self.p_basic(x) - herdsman.p_basic(0))
                 sumC = sumC + herdsman.p_basic(x)
         return (-self.l_fairself * sumA - self.l_fairother * sumB) / sumC * self.p_basic(x) if sumC > 0 else 0
 
@@ -222,6 +223,17 @@ class Herdsman(Agent):
         return 0
 
 
+class RandomSimultaneousActivation(BaseScheduler):
+    def step(self):
+        random.shuffle(self.agents)
+        for agent in self.agents[:]:
+            agent.advance()
+        for agent in self.agents[:]:
+            agent.step()
+        self.steps += 1
+        self.time += 1
+
+
 class TotC(Model):
 
     def __init__(self, initial_herdsmen=5, initial_sheep_per_herdsmen=5, initial_edges=5):
@@ -242,7 +254,7 @@ class TotC(Model):
 
 
         self.schedule_Grass = RandomActivation(self)
-        self.schedule_Herdsman = RandomActivation(self)
+        self.schedule_Herdsman = RandomSimultaneousActivation(self)
         self.schedule_Sheep = RandomActivation(self)
 
         self.grid = MultiGrid(self.width, self.height, torus=True)
