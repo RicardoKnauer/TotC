@@ -114,10 +114,9 @@ class Herdsman(Agent):
         
         # 3 is random init to see if it works
         self.degree = 3
-        self.betwcent = 3
-        # lists for shortest paths and common neighbours
-        self.shortest_paths = []
-        self.common_nbrs = []
+
+        self.friendship_weights = []
+
 
 
         for i in range(model.initial_sheep_per_herdsmen):
@@ -209,11 +208,13 @@ class Herdsman(Agent):
             return 0
         N = self.model.get_herdsman_count()
         sumA = 0
+        index = 0
         for herdsman in self.model.herdsmen:
-            for t in range(len(self.a)):
-                sumA = sumA + self.s(x, herdsman, t)
-
-        return self.p_basic(x) * self.l_conf * sumA / (len(self.a) * N)
+            if herdsman is not self:
+                for t in range(len(self.a)):
+                    sumA = sumA + self.friendship_weights[index] * self.s(x, herdsman, t)
+                index += 1
+        return self.p_basic(x) * self.l_conf * sumA / (len(self.a) * sum(self.friendship_weights))
 
     def add_risk(self, x):
         return 0
@@ -235,8 +236,6 @@ class TotC(Model):
         self.edgelist = self.G.edges
         self.nodelist = self.G.nodes
         self.unique_id_list = []
-        self.shortest_paths_list = []
-
 
         self.schedule_Grass = RandomActivation(self)
         self.schedule_Herdsman = RandomActivation(self)
@@ -304,11 +303,20 @@ class TotC(Model):
             for j in range(getattr(self, "initial_herdsmen")):
                 if i is not j:
                     if nx.has_path(self.G, source=i, target=j) == True:
-                        self.shortest_paths_list.append(1 / nx.shortest_path_length(self.G, source=i, target=j))
-                        self.herdsmen[i].shortest_paths.append(1 / nx.shortest_path_length(self.G, source=i, target=j))
+                        if nx.shortest_path_length(self.G, source=i, target=j) == 1:
+                            if sum(nx.common_neighbors(self.G, i, j)) > 5:
+                                self.herdsmen[i].friendship_weights.append(1)
+                            else:
+                                self.herdsmen[i].friendship_weights.append(0.75 + 0.05 * sum(nx.common_neighbors(self.G, i, j)))
+                        elif nx.shortest_path_length(self.G, source=i, target=j) == 1:
+                            if sum(nx.common_neighbors(self.G, i, j)) > 10:
+                                self.herdsmen[i].friendship_weights.append(1)
+                            else:
+                                self.herdsmen[i].friendship_weights.append(0.5 + 0.05 * sum(nx.common_neighbors(self.G, i, j)))
+                        else:
+                            self.herdsmen[i].friendship_weights.append(1 / nx.shortest_path_length(self.G, source=i, target=j))
                     else:
-                        self.shortest_paths_list.append(1/10)
-                        self.herdsmen[i].shortest_paths.append(1/10)
+                        self.herdsmen[i].friendship_weights.append(0.1)
 
     # giving the initialized herdsman the graph attributes
     def init_herds_attr(self):
@@ -357,14 +365,7 @@ class TotC(Model):
         self.datacollector.collect(self)
 
 
-# test=TotC()
-# test.run_model()
-# print(test.height)
-# print(test.nodelist)
-# print(test.edgelist)
-# print(test.G[0])
-# print(test.shortest_paths_list)
-# print(len(test.shortest_paths_list))
-# print(test.herdsmen[1].shortest_paths)
-# nx.draw(test.G, pos=nx.circular_layout(test.G), nodecolor='r', edgecolor= 'b')
-# plt.show()
+#test=TotC()
+#test.run_model()
+#nx.draw(test.G, pos=nx.circular_layout(test.G), nodecolor='r', edgecolor= 'b')
+#plt.show()
