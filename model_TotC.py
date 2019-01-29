@@ -9,14 +9,15 @@ import networkx as nx
 from mesa.space import NetworkGrid
 import matplotlib.pyplot as plt
 
-GROWTH_RATE = 0.0496 # Grass regrowth rate
+GROWTH_RATE = 0.00496 # Grass regrowth rate
 REQU = 1 # Amount of grass a sheep needs to eat in one timestep
 MAX_STEPS = 5 # Maximum amount of steps a sheep can do in one timestep
 P = 133
 GRIDSIZE = 33
 
 def g(grass):
-    return grass * (1 + (GROWTH_RATE * grass * (1 - (grass / 1089))))
+    #return grass * (1 + (GROWTH_RATE * grass * (1 - (grass / 1089))))
+    return grass + (GROWTH_RATE * grass * (1089 - grass) / 1089)
 
 class RandomWalker(Agent):
 
@@ -54,7 +55,7 @@ class Sheep(RandomWalker):
             this_cell = self.model.grid.get_cell_list_contents([self.pos])
             grass_eaten = False
             for agent in this_cell:
-                if isinstance(agent, Grass):
+                if isinstance(agent, Grass) and agent.density > 0.9:
                     saturation += agent.fade()
             self.random_move()
             i += 1
@@ -79,7 +80,7 @@ class Grass(Agent):
         Grass fades.
         """
         tmp = self.density
-        self.density = 0.1
+        self.density = 0.2
         return tmp
 
     def step(self):
@@ -161,8 +162,9 @@ class Herdsman(Agent):
     def p_coop(self, x):
         basicsum = 0
         for herdsman in self.model.herdsmen:
-            basicsum = basicsum + herdsman.p_basic(x) * herdsman.l_coop
+            basicsum = basicsum + herdsman.p_basic(0) * herdsman.l_coop
 
+        print((1 - self.l_coop) * self.p_basic(x) + basicsum)
         return (1 - self.l_coop) * self.p_basic(x) + basicsum
 
     def p_basic(self, x):
@@ -170,7 +172,7 @@ class Herdsman(Agent):
         grass = self.model.get_grass_count()
         sheep = self.model.get_sheep_count()
 
-        cost = g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x) * REQU)) * P / REQU
+        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x) * REQU))) * P / REQU
         return (len(self.k) + x) * P - (cost / N)
 
     def add_fair(self, x):
