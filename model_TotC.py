@@ -5,6 +5,7 @@ from mesa.datacollection import DataCollector
 from mesa.space import MultiGrid
 from mesa.time import RandomActivation, BaseScheduler
 
+import numpy as np
 import networkx as nx
 from mesa.space import NetworkGrid
 import matplotlib.pyplot as plt
@@ -95,6 +96,8 @@ class Grass(Agent):
         return GROWTH_RATE * self.density * (1 - self.density)
 
 class Herdsman(Agent):
+    x = None
+    i = 0
 
     def __init__(self, unique_id, model, pos):
         super().__init__(unique_id, model)
@@ -103,18 +106,20 @@ class Herdsman(Agent):
         self.unique_id = unique_id
         self.stock = []
 
-        self.l_coop = 1/7
-        self.l_fairself = 1/7
-        self.l_fairother = 1/7
-        self.l_negrecip = 1/7
-        self.l_posrecip = 1/7
-        self.l_conf = 1/7
-        self.l_risk = 1/7
+        self.l_coop = 0
+        self.l_fairself = 1
+        self.l_fairother = 1
+        self.l_negrecip = 0
+        self.l_posrecip = 0
+        self.l_conf = 0
+        self.l_risk = 0
         # Decision at each timestep
         self.a = []
         # Number of cattle owned at each timestep
         self.k = []
-        
+        self.index = Herdsman.i
+        Herdsman.i += 1
+        print('new herdsman born')
         # 3 is random init to see if it works
         self.degree = 3
 
@@ -142,6 +147,7 @@ class Herdsman(Agent):
 
     def advance(self):
         self.decision = self.decide()
+        print(Herdsman.x)
 
     def step(self):
         if self.decision > 0:
@@ -150,21 +156,33 @@ class Herdsman(Agent):
             self.remove_sheep()
 
         self.a.append(self.decision)
+        Herdsman.x[:] = 0
 
 
     def decide(self):
         # x is the consequence of the action
         # it can be -1 (negative), 0 (neutral), or 1 (positive)
         # (as described in Schindler)
-        a = self.p_coop(-1) + self.add_fair(-1) + self.add_recip(-1) + self.add_conf(-1) + self.add_risk(-1)
-        b = self.p_coop(0) + self.add_fair(0) + self.add_recip(0) + self.add_conf(0) + self.add_risk(0)
-        c = self.p_coop(1) + self.add_fair(1) + self.add_recip(1) + self.add_conf(1) + self.add_risk(1)
-        return -1 if a > b and a > c else 0 if b > c else 1
+        x = Herdsman.x
+
+        x[self.index] = -1
+        a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
+        print('-1 %d' % self.p_coop(x))
+        x[self.index] = 0
+        b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
+        print('0 %d' % self.p_coop(x))
+        x[self.index] = 1
+        c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
+        print('1 %d' % self.p_coop(x))
+        print(a, b, c)
+
+        x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
+        return x[self.index]
 
     def p_coop(self, x):
         basicsum = 0
         for herdsman in self.model.herdsmen:
-            basicsum = basicsum + herdsman.p_basic(0) * herdsman.l_coop
+            basicsum = basicsum + herdsman.p_basic(x) * herdsman.l_coop
 
         return (1 - self.l_coop) * self.p_basic(x) + basicsum
 
@@ -173,15 +191,15 @@ class Herdsman(Agent):
         grass = self.model.get_grass_count()
         sheep = self.model.get_sheep_count()
 
-        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x) * REQU))) * P / REQU
-        return (len(self.k) + x) * P - (cost / N)
+        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x.sum()) * REQU))) * P / REQU
+        return (len(self.k) + x[self.index]) * P - (cost / N)
 
     def add_fair(self, x):
         sumA, sumB, sumC = 0, 0, 0
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
-                sumA = sumA + max(herdsman.p_basic(0) - self.p_basic(x), 0)
-                sumB = sumB + max(0, self.p_basic(x) - herdsman.p_basic(0))
+                sumA = sumA + max(herdsman.p_basic(x) - self.p_basic(x), 0)
+                sumB = sumB + max(0, self.p_basic(x) - herdsman.p_basic(x))
                 sumC = sumC + herdsman.p_basic(x)
         return (-self.l_fairself * sumA - self.l_fairother * sumB) / sumC * self.p_basic(x) if sumC > 0 else 0
 
@@ -194,15 +212,15 @@ class Herdsman(Agent):
                 sumNeut = sumNeut + self.s( 0, herdsman, -1)
                 sumPos  = sumPos  + self.s( 1, herdsman, -1)
 
-        if x < 0:
+        if x[self.index] < 0:
             return self.p_basic(x) * self.l_negrecip * (sumNeg + 0.5 * sumNeut) / (N-1)
-        elif x > 0:
+        elif x[self.index] > 0:
             return self.p_basic(x) * self.l_posrecip * (sumPos + 0.5 * sumNeut) / (N-1)
         else:
             return self.p_basic(x) * 0.5 * (self.l_negrecip * (sumNeg + 0.5 * sumNeut) + self.l_posrecip * (sumPos + 0.5 * sumNeut)) / (N-1)
 
     # d : { -1, 0, 1 } (in Schindler: neg, neut, pos)
-    # j: herdsman
+    # h: herdsman
     # t: timestep
     def s(self, d, h, t):
         return 1 if len(h.a) > 0 and h.a[t] is d else 0
@@ -247,6 +265,8 @@ class TotC(Model):
         self.grass = []
         
         self.G = nx.gnm_random_graph(initial_herdsmen, initial_edges)
+        Herdsman.x = np.zeros(initial_herdsmen)
+        Herdsman.i = 0
         # or G = nx.erdos_renyi_graph(n, p)
         self.edgelist = self.G.edges
         self.nodelist = self.G.nodes
@@ -263,7 +283,6 @@ class TotC(Model):
              "Sheep": lambda m: self.get_sheep_count()})
 
         self.init_population()
-        print('running')
         # required for the datacollector to work
         self.running = True
         self.datacollector.collect(self)
