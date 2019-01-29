@@ -9,9 +9,9 @@ import networkx as nx
 from mesa.space import NetworkGrid
 import matplotlib.pyplot as plt
 
-GROWTH_RATE = 0.00496 # Grass regrowth rate
+GROWTH_RATE = 0.0496 # Grass regrowth rate
 REQU = 1 # Amount of grass a sheep needs to eat in one timestep
-MAX_STEPS = 5 # Maximum amount of steps a sheep can do in one timestep
+MAX_STEPS = 50 # Maximum amount of steps a sheep can do in one timestep
 P = 133
 GRIDSIZE = 33
 
@@ -55,8 +55,10 @@ class Sheep(RandomWalker):
             this_cell = self.model.grid.get_cell_list_contents([self.pos])
             grass_eaten = False
             for agent in this_cell:
-                if isinstance(agent, Grass) and agent.density > 0.9:
-                    saturation += agent.fade()
+                if isinstance(agent, Grass):
+                    if agent.density > 0.75:
+                        agent.fade()
+                        saturation += 1
             self.random_move()
             i += 1
         if saturation < REQU:
@@ -80,7 +82,7 @@ class Grass(Agent):
         Grass fades.
         """
         tmp = self.density
-        self.density = 0.2
+        self.density = 0.1
         return tmp
 
     def step(self):
@@ -164,7 +166,6 @@ class Herdsman(Agent):
         for herdsman in self.model.herdsmen:
             basicsum = basicsum + herdsman.p_basic(0) * herdsman.l_coop
 
-        print((1 - self.l_coop) * self.p_basic(x) + basicsum)
         return (1 - self.l_coop) * self.p_basic(x) + basicsum
 
     def p_basic(self, x):
@@ -247,7 +248,7 @@ class TotC(Model):
         self.grid = MultiGrid(self.width, self.height, torus=True)
         # Grass is actually number of sheep grass can support
         self.datacollector = DataCollector(
-            {"Grass": lambda m: self.get_expected_grass_growth() / REQU,
+            {"Grass": lambda m: self.get_expected_grass_growth() / REQU / 0.65,
              "Sheep": lambda m: self.get_sheep_count()})
 
         self.init_population()
