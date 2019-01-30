@@ -11,6 +11,13 @@ from mesa.visualization.UserParam import UserSettableParameter
 
 v_slider = UserSettableParameter('slider', "Number of Herdsman", 5, 1, 10, 1)
 e_slider = UserSettableParameter('slider', "Number of Edges [max. (V*(V-1)/2]", 5, 0, 45, 1)
+l_coop_slider = UserSettableParameter('slider', "l_coop", 1, 0, 1, .1)
+l_fairself_slider = UserSettableParameter('slider', "l_fairself", 1, 0, 1, .1)
+l_fairother_slider = UserSettableParameter('slider', "l_fairother", 1, 0, 1, .1)
+l_negrecip_slider = UserSettableParameter('slider', "l_negrecip", 1, 0, 1, .1)
+l_posrecip_slider = UserSettableParameter('slider', "l_posrecip", 1, 0, 1, .1)
+l_conf_slider = UserSettableParameter('slider', "l_conf", 1, 0, 1, .1)
+l_risk_slider = UserSettableParameter('slider', "l_risk", 1, 0, 1, .1)
 
 # change stdout so most prints etc. can be ignored
 orig_stdout = sys.stdout
@@ -71,7 +78,15 @@ chart = ChartModule([{"Label": "Grass",
 server = ModularServer(TotC,
                        [grid, chart],
                        "Tragedy of the Commons Model",
-                       {"initial_herdsmen": v_slider, "initial_edges": e_slider})
+                       {"initial_herdsmen": v_slider,
+                        "initial_edges": e_slider,
+                        "l_coop": l_coop_slider,
+                        "l_fairself": l_fairself_slider,
+                        "l_fairother": l_fairother_slider,
+                        "l_negrecip": l_negrecip_slider,
+                        "l_posrecip": l_posrecip_slider,
+                        "l_conf": l_conf_slider,
+                        "l_risk": l_risk_slider})
 
 server.port = 8521
 

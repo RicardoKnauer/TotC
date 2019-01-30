@@ -7,6 +7,7 @@ from mesa.time import RandomActivation, BaseScheduler
 
 import numpy as np
 import networkx as nx
+import scipy.stats as stats
 from mesa.space import NetworkGrid
 import matplotlib.pyplot as plt
 
@@ -106,20 +107,20 @@ class Herdsman(Agent):
         self.unique_id = unique_id
         self.stock = []
 
-        self.l_coop = 0.5
-        self.l_fairself = 0
-        self.l_fairother = 0
-        self.l_negrecip = 0
-        self.l_posrecip = 0
-        self.l_conf = 0
-        self.l_risk = 0
+        self.l_coop = stats.truncnorm(0 - self.model.l_coop, 1 - self.model.l_coop, self.model.l_coop, scale = .5).rvs()
+        self.l_fairself = stats.truncnorm(0 - self.model.l_fairself, 1 - self.model.l_fairself, self.model.l_fairself, scale = .5).rvs()
+        self.l_fairother = stats.truncnorm(0 - self.model.l_fairother, 1 - self.model.l_fairother, self.model.l_fairother, scale = .5).rvs()
+        self.l_posrecip = stats.truncnorm(0 - self.model.l_posrecip, 1 - self.model.l_posrecip, self.model.l_posrecip, scale = .5).rvs()
+        self.l_negrecip = stats.truncnorm(0 - self.model.l_negrecip, 1 - self.model.l_negrecip, self.model.l_negrecip, scale = .5).rvs()
+        self.l_conf = stats.truncnorm(0 - self.model.l_conf, 1 - self.model.l_conf, self.model.l_conf, scale = .5).rvs()
+        self.l_risk = stats.truncnorm(0 - self.model.l_risk, 1 - self.model.l_risk, self.model.l_risk, scale = .5).rvs()
         # Decision at each timestep
         self.a = []
         # Number of cattle owned at each timestep
         self.k = []
         self.index = Herdsman.i
         Herdsman.i += 1
-        print('new herdsman born')
+        #print('new herdsman born')
         # 3 is random init to see if it works
         self.degree = 3
 
@@ -257,15 +258,32 @@ class RandomSimultaneousActivation(BaseScheduler):
 
 class TotC(Model):
 
-    def __init__(self, initial_herdsmen=5, initial_sheep_per_herdsmen=5, initial_edges=5):
+    def __init__(self,
+                 initial_herdsmen=5,
+                 initial_sheep_per_herdsmen=5,
+                 initial_edges=5,
+                 l_coop = 1,
+                 l_fairself = 1,
+                 l_fairother = 1,
+                 l_negrecip = 1,
+                 l_posrecip = 1,
+                 l_conf = 1,
+                 l_risk = 1):
         super().__init__()
         self.width = GRIDSIZE
         self.height = GRIDSIZE
         self.initial_herdsmen = initial_herdsmen
         self.initial_sheep_per_herdsmen = initial_sheep_per_herdsmen
+        self.l_coop = l_coop
+        self.l_fairself = l_fairself
+        self.l_fairother = l_fairother
+        self.l_negrecip = l_negrecip
+        self.l_posrecip = l_posrecip
+        self.l_conf = l_conf
+        self.l_risk = l_risk
         self.herdsmen = []
         self.grass = []
-        
+
         self.G = nx.gnm_random_graph(initial_herdsmen, initial_edges)
         Herdsman.x = np.zeros(initial_herdsmen)
         Herdsman.i = 0
@@ -405,3 +423,4 @@ class TotC(Model):
 #test.run_model()
 #nx.draw(test.G, pos=nx.circular_layout(test.G), nodecolor='r', edgecolor= 'b')
 #plt.show()
+#print(test.herdsmen[1].l_coop)
