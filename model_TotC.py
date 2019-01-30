@@ -106,9 +106,9 @@ class Herdsman(Agent):
         self.unique_id = unique_id
         self.stock = []
 
-        self.l_coop = 0
-        self.l_fairself = 1
-        self.l_fairother = 1
+        self.l_coop = 0.5
+        self.l_fairself = 0
+        self.l_fairother = 0
         self.l_negrecip = 0
         self.l_posrecip = 0
         self.l_conf = 0
@@ -167,14 +167,10 @@ class Herdsman(Agent):
 
         x[self.index] = -1
         a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
-        print('-1 %d' % self.p_coop(x))
         x[self.index] = 0
         b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
-        print('0 %d' % self.p_coop(x))
         x[self.index] = 1
         c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
-        print('1 %d' % self.p_coop(x))
-        print(a, b, c)
 
         x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
         return x[self.index]
@@ -186,7 +182,7 @@ class Herdsman(Agent):
             if herdsman is not self:
                 basicsum = basicsum + self.friendship_weights[count] * herdsman.p_basic(x)
                 count += 1
-        return (1 - self.l_coop) * self.p_basic(x) + basicsum * self.l_coop / sum(self.friendship_weights)
+        return (1 - self.l_coop) * self.p_basic(x) + basicsum * self.l_coop / sum(self.friendship_weights) * (len(self.model.herdsmen) - 1)
 
     def p_basic(self, x):
         N = self.model.get_herdsman_count()
@@ -205,7 +201,7 @@ class Herdsman(Agent):
                 sumB = sumB + self.friendship_weights[count] * max(0, self.p_basic(x) - herdsman.p_basic(x))
                 sumC = sumC + herdsman.p_basic(x)
                 count += 1
-        return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights)) / sumC * self.p_basic(x) if sumC > 0 else 0
+        return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights) * (len(self.model.herdsmen) - 1)) / sumC * self.p_basic(x) if sumC > 0 else 0
 
     def add_recip(self, x):
         N = self.model.get_herdsman_count()
