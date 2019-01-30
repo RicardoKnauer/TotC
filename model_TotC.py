@@ -107,23 +107,18 @@ class Herdsman(Agent):
         self.unique_id = unique_id
         self.stock = []
 
-        self.l_coop = stats.truncnorm(0 - self.model.l_coop, 1 - self.model.l_coop, self.model.l_coop, scale = .5).rvs()
-        self.l_fairself = stats.truncnorm(0 - self.model.l_fairself, 1 - self.model.l_fairself, self.model.l_fairself, scale = .5).rvs()
-        self.l_fairother = stats.truncnorm(0 - self.model.l_fairother, 1 - self.model.l_fairother, self.model.l_fairother, scale = .5).rvs()
-        self.l_posrecip = stats.truncnorm(0 - self.model.l_posrecip, 1 - self.model.l_posrecip, self.model.l_posrecip, scale = .5).rvs()
-        self.l_negrecip = stats.truncnorm(0 - self.model.l_negrecip, 1 - self.model.l_negrecip, self.model.l_negrecip, scale = .5).rvs()
-        self.l_conf = stats.truncnorm(0 - self.model.l_conf, 1 - self.model.l_conf, self.model.l_conf, scale = .5).rvs()
-        self.l_risk = stats.truncnorm(0 - self.model.l_risk, 1 - self.model.l_risk, self.model.l_risk, scale = .5).rvs()
+        self.l_coop = stats.truncnorm((0 - self.model.l_coop) / 0.1, (1 - self.model.l_coop) / 0.1, self.model.l_coop, scale = .1).rvs()
+        self.l_fairself = stats.truncnorm((0 - self.model.l_fairself) / 0.1, (1 - self.model.l_fairself) / 0.1, self.model.l_fairself, scale = .1).rvs()
+        self.l_fairother = stats.truncnorm((0 - self.model.l_fairother) / 0.1, (1 - self.model.l_fairother) / 0.1, self.model.l_fairother, scale = .1).rvs()
+        self.l_posrecip = stats.truncnorm((0 - self.model.l_posrecip) / 0.1, (1 - self.model.l_posrecip) / 0.1, self.model.l_posrecip, scale = .1).rvs()
+        self.l_negrecip = stats.truncnorm((0 - self.model.l_negrecip) / 0.1, (1 - self.model.l_negrecip) / 0.1, self.model.l_negrecip, scale = .1).rvs()
+        self.l_conf = stats.truncnorm((0 - self.model.l_conf) / 0.1, (1 - self.model.l_conf) / 0.1, self.model.l_conf, scale = .1).rvs()
         # Decision at each timestep
         self.a = []
         # Number of cattle owned at each timestep
         self.k = []
         self.index = Herdsman.i
         Herdsman.i += 1
-        #print('new herdsman born')
-        # 3 is random init to see if it works
-        self.degree = 3
-
         self.friendship_weights = []
 
 
@@ -167,12 +162,13 @@ class Herdsman(Agent):
         x = Herdsman.x
 
         x[self.index] = -1
-        a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
+        a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
         x[self.index] = 0
-        b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
+        b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
         x[self.index] = 1
-        c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x) + self.add_risk(x)
-
+        c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        if len(self.stock) == 0:
+            a = -float('inf')
         x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
         return x[self.index]
 
@@ -241,8 +237,7 @@ class Herdsman(Agent):
                 count += 1
         return self.p_basic(x) * self.l_conf * sumA / (len(self.a) * sum(self.friendship_weights))
 
-    def add_risk(self, x):
-        return 0
+
 
 
 class RandomSimultaneousActivation(BaseScheduler):
@@ -259,16 +254,15 @@ class RandomSimultaneousActivation(BaseScheduler):
 class TotC(Model):
 
     def __init__(self,
-                 initial_herdsmen=5,
-                 initial_sheep_per_herdsmen=5,
-                 initial_edges=5,
-                 l_coop = 1,
+                 initial_herdsmen = 5,
+                 initial_sheep_per_herdsmen = 0,
+                 initial_edges = 5,
+                 l_coop = 0,
                  l_fairself = 1,
-                 l_fairother = 1,
-                 l_negrecip = 1,
-                 l_posrecip = 1,
-                 l_conf = 1,
-                 l_risk = 1):
+                 l_fairother = 0,
+                 l_negrecip = 0,
+                 l_posrecip = 0,
+                 l_conf = 0):
         super().__init__()
         self.width = GRIDSIZE
         self.height = GRIDSIZE
@@ -280,17 +274,12 @@ class TotC(Model):
         self.l_negrecip = l_negrecip
         self.l_posrecip = l_posrecip
         self.l_conf = l_conf
-        self.l_risk = l_risk
         self.herdsmen = []
         self.grass = []
 
         self.G = nx.gnm_random_graph(initial_herdsmen, initial_edges)
         Herdsman.x = np.zeros(initial_herdsmen)
         Herdsman.i = 0
-        # or G = nx.erdos_renyi_graph(n, p)
-        self.edgelist = self.G.edges
-        self.nodelist = self.G.nodes
-        self.unique_id_list = []
 
         self.schedule_Grass = RandomActivation(self)
         self.schedule_Herdsman = RandomSimultaneousActivation(self)
@@ -325,7 +314,6 @@ class TotC(Model):
         self.init_grass()
         self.init_herdsman()
         self.init_node_attr()
-        self.init_herds_attr()
 
 
     def init_grass(self):
@@ -343,17 +331,14 @@ class TotC(Model):
         y = random.randrange(self.height)
         herdsman = self.new_agent(Herdsman, (x, y))
         self.herdsmen.append(herdsman)
-        # get list of herdsman IDs
-        self.unique_id_list.append(herdsman.unique_id)
 
     def get_herdsman(self, j):
         return self.herdsmen[j]
     
+
     # giving the nodes of the graph the unique herdsman IDs as attribute
     def init_node_attr(self):
         for i in range(getattr(self, "initial_herdsmen")):
-            self.G.nodes[i]['herds_id'] = self.unique_id_list[i]
-           # self.G.nodes[i] = self.unique_id_list[i]
             for j in range(getattr(self, "initial_herdsmen")):
                 if i is not j:
                     if nx.has_path(self.G, source=i, target=j) == True:
@@ -371,15 +356,6 @@ class TotC(Model):
                             self.herdsmen[i].friendship_weights.append(1 / nx.shortest_path_length(self.G, source=i, target=j))
                     else:
                         self.herdsmen[i].friendship_weights.append(0.1)
-
-    # giving the initialized herdsman the graph attributes
-    def init_herds_attr(self):
-        for herdsman in self.herdsmen:
-            for i in range(getattr(self, "initial_herdsmen")):
-                if self.G.nodes[i]['herds_id'] == herdsman.unique_id:
-                    herdsman.degree = self.G.degree[i]
-
-
 
 
     def new_agent(self, agent_type, pos):
