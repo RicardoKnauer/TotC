@@ -37,8 +37,16 @@ class RandomWalker(Agent):
             self.pos,
             moore=True,
             include_center=False)
-        new_position = random.choice(possible_steps)
-        self.model.grid.move_agent(self, new_position)
+        highest_density = 0
+        best_choice = None
+        for step in possible_steps:
+            this_cell = self.model.grid.get_cell_list_contents([step])
+            for agent in this_cell:
+                if isinstance(agent, Grass):
+                    if agent.density > highest_density:
+                        highest_density = agent.density
+                        best_choice = step
+        self.model.grid.move_agent(self, best_choice)
 
 
 class Sheep(RandomWalker):
@@ -52,18 +60,18 @@ class Sheep(RandomWalker):
         """
         Sheep either eats grass or moves randomly to Moore's neighborhood.
         """
-        saturation, i = 0, 0
-        while i < MAX_STEPS and saturation < REQU:
+        i = 0
+        self.saturation -= .1
+        while i < MAX_STEPS and self.saturation < REQU:
             this_cell = self.model.grid.get_cell_list_contents([self.pos])
-            grass_eaten = False
             for agent in this_cell:
                 if isinstance(agent, Grass):
-                    if agent.density > 0.75:
-                        agent.fade()
-                        saturation += 1
+                    self.saturation += (agent.density - 0.05)
+                    agent.fade()
             self.random_move()
             i += 1
-        if saturation < REQU:
+        print(self.saturation)
+        if self.saturation < REQU:
             self.die()
 
     def die(self):
@@ -84,7 +92,7 @@ class Grass(Agent):
         Grass fades.
         """
         tmp = self.density
-        self.density = 0.1
+        self.density = 0.05
         return tmp
 
     def step(self):
@@ -163,12 +171,16 @@ class Herdsman(Agent):
 
         x[self.index] = -1
         a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        print('a:', a, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         x[self.index] = 0
         b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        print('b:', b, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         x[self.index] = 1
         c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        print('c:', c, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         if len(self.stock) == 0:
             a = -float('inf')
+        print('self.friendship_weights:', self.friendship_weights)
         x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
         return x[self.index]
 
@@ -185,9 +197,9 @@ class Herdsman(Agent):
         N = self.model.get_herdsman_count()
         grass = self.model.get_grass_count()
         sheep = self.model.get_sheep_count()
-
-        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x.sum()) * REQU))) * P / REQU
-        return (len(self.k) + x[self.index]) * P - (cost / N)
+        # cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x.sum()) * REQU))) * P / REQU # x.sum() may be < 1
+        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x[self.index]) * REQU))) * P / REQU  # x.sum() may be < 1
+        return max(0, (len(self.k) + x[self.index]) * P - (cost / N))
 
     def add_fair(self, x):
         sumA, sumB, sumC = 0, 0, 0
@@ -197,8 +209,11 @@ class Herdsman(Agent):
                 sumA = sumA + max(herdsman.p_basic(x) - self.p_basic(x), 0)
                 sumB = sumB + self.friendship_weights[count] * max(0, self.p_basic(x) - herdsman.p_basic(x))
                 sumC = sumC + herdsman.p_basic(x)
+                #print('Sum a,b,c fairness, herdsman_p_basic,self_p_basic:', sumA, sumB, sumC, herdsman.p_basic(x), self.p_basic(x))
                 count += 1
-        return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights) * (len(self.model.herdsmen) - 1)) / sumC * self.p_basic(x) if sumC > 0 else 0
+        # return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights) *
+        # (len(self.model.herdsmen) - 1)) / sumC * self.p_basic(x) if sumC > 0 else 0
+        return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights)) / sumC * self.p_basic(x) if sumC > 0 else 0
 
     def add_recip(self, x):
         N = self.model.get_herdsman_count()
@@ -338,6 +353,7 @@ class TotC(Model):
 
     # giving the nodes of the graph the unique herdsman IDs as attribute
     def init_node_attr(self):
+        N = self.get_herdsman_count()
         for i in range(getattr(self, "initial_herdsmen")):
             for j in range(getattr(self, "initial_herdsmen")):
                 if i is not j:
@@ -355,7 +371,7 @@ class TotC(Model):
                         else:
                             self.herdsmen[i].friendship_weights.append(1 / nx.shortest_path_length(self.G, source=i, target=j))
                     else:
-                        self.herdsmen[i].friendship_weights.append(0.1)
+                        self.herdsmen[i].friendship_weights.append(1 / N)
 
 
     def new_agent(self, agent_type, pos):
