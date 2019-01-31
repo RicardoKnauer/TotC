@@ -54,7 +54,7 @@ def agent_portrayal(agent):
         portrayal["Layer"] = 1
         portrayal["w"] = .9
         portrayal["h"] = .9
-        portrayal["text"] = 'A'
+        portrayal["text"] = len(agent.stock)
         portrayal["text_color"] = "white"
 
     elif type(agent) is Sheep:
