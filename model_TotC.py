@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 GROWTH_RATE = 0.0496 # Grass regrowth rate
 REQU = 1 # Amount of grass a sheep needs to eat in one timestep
-MAX_STEPS = 50 # Maximum amount of steps a sheep can do in one timestep
+MAX_STEPS = 5 # Maximum amount of steps a sheep can do in one timestep
 P = 133
 GRIDSIZE = 33
 
@@ -61,7 +61,7 @@ class Sheep(RandomWalker):
         Sheep either eats grass or moves randomly to Moore's neighborhood.
         """
         i = 0
-        self.saturation -= .1
+        self.saturation -= .5
         while i < MAX_STEPS and self.saturation < REQU:
             this_cell = self.model.grid.get_cell_list_contents([self.pos])
             for agent in this_cell:
@@ -169,10 +169,15 @@ class Herdsman(Agent):
 
         x[self.index] = -1
         a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        print("a:", a, "coop:", self.p_coop(x), "fair:", self.add_fair(x), "recip:", self.add_recip(x), "conf:", self.add_conf(x))
         x[self.index] = 0
         b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        print("b:", b, "coop:", self.p_coop(x), "fair:", self.add_fair(x), "recip:", self.add_recip(x), "conf:",
+              self.add_conf(x))
         x[self.index] = 1
         c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        print("c:", c, "coop:", self.p_coop(x), "fair:", self.add_fair(x), "recip:", self.add_recip(x), "conf:",
+              self.add_conf(x))
         if len(self.stock) == 0:
             a = -float('inf')
         x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
@@ -187,14 +192,17 @@ class Herdsman(Agent):
             if herdsman is not self:
                 basicsum = basicsum + self.friendship_weights[count] * herdsman.p_basic(x_tmp)
                 count += 1
-        return (1 - self.l_coop) * self.p_basic(x) + basicsum * self.l_coop / sum(self.friendship_weights) * (len(self.model.herdsmen) - 1)
+        result = (1 - self.l_coop) * self.p_basic(x) + basicsum * self.l_coop / sum(self.friendship_weights)
+        if (self.model.get_sheep_count() > self.model.get_expected_grass_growth() / .5) and x[self.index] == -1:
+            return result + self.l_coop * self.model.get_grass_count()
+        else:
+            return result
 
     def p_basic(self, x):
         N = self.model.get_herdsman_count()
         grass = self.model.get_grass_count()
         sheep = self.model.get_sheep_count()
-        # cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x.sum()) * REQU))) * P / REQU # x.sum() may be < 1
-        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x[self.index]) * REQU))) * P / REQU  # x.sum() may be < 1
+        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x[self.index]) * REQU))) * P / REQU
         return max(0, (len(self.k) + x[self.index]) * P - (cost / N))
 
     def add_fair(self, x):
@@ -283,7 +291,7 @@ class TotC(Model):
         self.grid = MultiGrid(self.width, self.height, torus=True)
         # Grass is actually number of sheep grass can support
         self.datacollector = DataCollector(
-            {"Grass": lambda m: self.get_expected_grass_growth() / REQU / 0.65,
+            {"Grass": lambda m: self.get_expected_grass_growth() / .5,
              "Sheep": lambda m: self.get_sheep_count()})
 
         self.init_population()
