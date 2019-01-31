@@ -3,7 +3,7 @@ from mesa import Agent
 from mesa import Model
 from mesa.datacollection import DataCollector
 from mesa.space import MultiGrid
-from mesa.time import RandomActivation, BaseScheduler
+from mesa.time import RandomActivation, BaseScheduler, StagedActivation
 
 import numpy as np
 import networkx as nx
@@ -70,7 +70,6 @@ class Sheep(RandomWalker):
                     agent.fade()
             self.random_move()
             i += 1
-        print(self.saturation)
         if self.saturation < REQU:
             self.die()
 
@@ -151,7 +150,6 @@ class Herdsman(Agent):
 
     def advance(self):
         self.decision = self.decide()
-        print(Herdsman.x)
 
     def step(self):
         if self.decision > 0:
@@ -171,25 +169,23 @@ class Herdsman(Agent):
 
         x[self.index] = -1
         a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
-        print('a:', a, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         x[self.index] = 0
         b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
-        print('b:', b, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         x[self.index] = 1
         c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
-        print('c:', c, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         if len(self.stock) == 0:
             a = -float('inf')
-        print('self.friendship_weights:', self.friendship_weights)
         x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
         return x[self.index]
 
     def p_coop(self, x):
         basicsum = 0
         count = 0
+        x_tmp = np.zeros(x.shape)
+        x_tmp[self.index] = x[self.index]
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
-                basicsum = basicsum + self.friendship_weights[count] * herdsman.p_basic(x)
+                basicsum = basicsum + self.friendship_weights[count] * herdsman.p_basic(x_tmp)
                 count += 1
         return (1 - self.l_coop) * self.p_basic(x) + basicsum * self.l_coop / sum(self.friendship_weights) * (len(self.model.herdsmen) - 1)
 
@@ -209,10 +205,7 @@ class Herdsman(Agent):
                 sumA = sumA + max(herdsman.p_basic(x) - self.p_basic(x), 0)
                 sumB = sumB + self.friendship_weights[count] * max(0, self.p_basic(x) - herdsman.p_basic(x))
                 sumC = sumC + herdsman.p_basic(x)
-                #print('Sum a,b,c fairness, herdsman_p_basic,self_p_basic:', sumA, sumB, sumC, herdsman.p_basic(x), self.p_basic(x))
                 count += 1
-        # return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights) *
-        # (len(self.model.herdsmen) - 1)) / sumC * self.p_basic(x) if sumC > 0 else 0
         return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights)) / sumC * self.p_basic(x) if sumC > 0 else 0
 
     def add_recip(self, x):
@@ -253,19 +246,6 @@ class Herdsman(Agent):
         return self.p_basic(x) * self.l_conf * sumA / (len(self.a) * sum(self.friendship_weights))
 
 
-
-
-class RandomSimultaneousActivation(BaseScheduler):
-    def step(self):
-        random.shuffle(self.agents)
-        for agent in self.agents[:]:
-            agent.advance()
-        for agent in self.agents[:]:
-            agent.step()
-        self.steps += 1
-        self.time += 1
-
-
 class TotC(Model):
 
     def __init__(self,
@@ -297,7 +277,7 @@ class TotC(Model):
         Herdsman.i = 0
 
         self.schedule_Grass = RandomActivation(self)
-        self.schedule_Herdsman = RandomSimultaneousActivation(self)
+        self.schedule_Herdsman = StagedActivation(self, stage_list=["advance", "step"], shuffle=True)
         self.schedule_Sheep = RandomActivation(self)
 
         self.grid = MultiGrid(self.width, self.height, torus=True)
