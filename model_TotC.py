@@ -230,7 +230,7 @@ class Herdsman(Agent):
     # h: herdsman
     # t: timestep
     def s(self, d, h, t):
-        return 1 if len(h.a) > 0 and h.a[t] is d else 0
+        return 1 if len(h.a) > 0 and h.a[t] == d else 0
 
     def add_conf(self, x):
         if len(self.a) == 0:
@@ -241,7 +241,7 @@ class Herdsman(Agent):
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
                 for t in range(len(self.a)):
-                    sumA = sumA + self.friendship_weights[count] * self.s(x, herdsman, t)
+                    sumA = sumA + self.friendship_weights[count] * self.s(x[self.index], herdsman, t)
                 count += 1
         return self.p_basic(x) * self.l_conf * sumA / (len(self.a) * sum(self.friendship_weights))
 
@@ -273,7 +273,7 @@ class TotC(Model):
         self.grass = []
 
         self.G = nx.gnm_random_graph(initial_herdsmen, initial_edges)
-        Herdsman.x = np.zeros(initial_herdsmen)
+        Herdsman.x = np.zeros(initial_herdsmen, dtype=np.int8)
         Herdsman.i = 0
 
         self.schedule_Grass = RandomActivation(self)
