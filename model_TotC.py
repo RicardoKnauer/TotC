@@ -157,7 +157,7 @@ class Herdsman(Agent):
         elif self.decision < 0:
             self.remove_sheep()
 
-        self.a.append(self.decision)
+        self.a.append(int(self.decision))
         Herdsman.x[:] = 0
 
 
