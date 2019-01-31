@@ -3,7 +3,7 @@ from mesa import Agent
 from mesa import Model
 from mesa.datacollection import DataCollector
 from mesa.space import MultiGrid
-from mesa.time import RandomActivation, BaseScheduler
+from mesa.time import RandomActivation, BaseScheduler, StagedActivation
 
 import numpy as np
 import networkx as nx
@@ -150,7 +150,6 @@ class Herdsman(Agent):
 
     def advance(self):
         self.decision = self.decide()
-        print(Herdsman.x)
 
     def step(self):
         if self.decision > 0:
@@ -182,9 +181,11 @@ class Herdsman(Agent):
     def p_coop(self, x):
         basicsum = 0
         count = 0
+        x_tmp = np.zeros(x.shape)
+        x_tmp[self.index] = x[self.index]
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
-                basicsum = basicsum + self.friendship_weights[count] * herdsman.p_basic(x)
+                basicsum = basicsum + self.friendship_weights[count] * herdsman.p_basic(x_tmp)
                 count += 1
         return (1 - self.l_coop) * self.p_basic(x) + basicsum * self.l_coop / sum(self.friendship_weights) * (len(self.model.herdsmen) - 1)
 
@@ -245,19 +246,6 @@ class Herdsman(Agent):
         return self.p_basic(x) * self.l_conf * sumA / (len(self.a) * sum(self.friendship_weights))
 
 
-
-
-class RandomSimultaneousActivation(BaseScheduler):
-    def step(self):
-        random.shuffle(self.agents)
-        for agent in self.agents[:]:
-            agent.advance()
-        for agent in self.agents[:]:
-            agent.step()
-        self.steps += 1
-        self.time += 1
-
-
 class TotC(Model):
 
     def __init__(self,
@@ -289,7 +277,7 @@ class TotC(Model):
         Herdsman.i = 0
 
         self.schedule_Grass = RandomActivation(self)
-        self.schedule_Herdsman = RandomSimultaneousActivation(self)
+        self.schedule_Herdsman = StagedActivation(self, stage_list=["advance", "step"], shuffle=True)
         self.schedule_Sheep = RandomActivation(self)
 
         self.grid = MultiGrid(self.width, self.height, torus=True)
