@@ -70,7 +70,6 @@ class Sheep(RandomWalker):
                     agent.fade()
             self.random_move()
             i += 1
-        print(self.saturation)
         if self.saturation < REQU:
             self.die()
 
@@ -171,16 +170,12 @@ class Herdsman(Agent):
 
         x[self.index] = -1
         a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
-        print('a:', a, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         x[self.index] = 0
         b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
-        print('b:', b, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         x[self.index] = 1
         c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
-        print('c:', c, self.p_basic(x), self.p_coop(x), self.add_fair(x), self.add_recip(x), self.add_conf(x))
         if len(self.stock) == 0:
             a = -float('inf')
-        print('self.friendship_weights:', self.friendship_weights)
         x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
         return x[self.index]
 
@@ -209,10 +204,7 @@ class Herdsman(Agent):
                 sumA = sumA + max(herdsman.p_basic(x) - self.p_basic(x), 0)
                 sumB = sumB + self.friendship_weights[count] * max(0, self.p_basic(x) - herdsman.p_basic(x))
                 sumC = sumC + herdsman.p_basic(x)
-                #print('Sum a,b,c fairness, herdsman_p_basic,self_p_basic:', sumA, sumB, sumC, herdsman.p_basic(x), self.p_basic(x))
                 count += 1
-        # return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights) *
-        # (len(self.model.herdsmen) - 1)) / sumC * self.p_basic(x) if sumC > 0 else 0
         return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights)) / sumC * self.p_basic(x) if sumC > 0 else 0
 
     def add_recip(self, x):
