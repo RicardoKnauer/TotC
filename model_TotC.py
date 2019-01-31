@@ -193,7 +193,7 @@ class Herdsman(Agent):
                 basicsum = basicsum + self.friendship_weights[count] * herdsman.p_basic(x_tmp)
                 count += 1
         result = (1 - self.l_coop) * self.p_basic(x) + basicsum * self.l_coop / sum(self.friendship_weights)
-        if (self.model.get_sheep_count() > self.model.get_expected_grass_growth() / .5) and x[self.index] == -1:
+        if (self.model.get_sheep_count() - 1 > self.model.get_expected_grass_growth() / .5) and x[self.index] == -1:
             return result + self.l_coop * self.model.get_grass_count()
         else:
             return result
@@ -301,7 +301,7 @@ class TotC(Model):
 
     # Expected grass growth
     def get_expected_grass_growth(self):
-        return sum([grass.next_density() for grass in self.grass])
+        return sum([grass.next_density() if grass.density < 0.99 else 0.0123 for grass in self.grass])
 
     def get_grass_count(self):
         return sum([grass.density for grass in self.grass])
