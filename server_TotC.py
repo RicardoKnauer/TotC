@@ -18,6 +18,7 @@ sys.stdout = orig_stdout
 
 v_slider = UserSettableParameter('slider', "Number of Herdsman", 5, 1, 10, 1)
 e_slider = UserSettableParameter('slider', "Number of Edges [max. (V*(V-1)/2]", 5, 0, 45, 1)
+s_slider = UserSettableParameter('slider', "Number of initial sheep per Herdsman", 10, 0, 50, 1)
 l_coop_slider = UserSettableParameter('slider', "l_coop", 0, 0, 1, .1)
 l_fairself_slider = UserSettableParameter('slider', "l_fairself", 0, 0, 1, .1)
 l_fairother_slider = UserSettableParameter('slider', "l_fairother", 0, 0, 1, .1)
@@ -80,6 +81,7 @@ server = ModularServer(TotC,
                        "Tragedy of the Commons Model",
                        {"initial_herdsmen": v_slider,
                         "initial_edges": e_slider,
+                        "initial_sheep_per_herdsmen": s_slider,
                         "l_coop": l_coop_slider,
                         "l_fairself": l_fairself_slider,
                         "l_fairother": l_fairother_slider,
