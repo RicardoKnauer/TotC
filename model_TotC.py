@@ -11,9 +11,10 @@ import scipy.stats as stats
 
 
 GRID_SIZE = 33          # 33x33 grid
-GROWTH_RATE = .05       # grass regrowth rate
+GROWTH_RATE = .1       # grass regrowth rate
 MAX_STEPS = 5           # max number of steps per sheep and time step
-P = 133                 # sheep price
+#P = 133                 # sheep price
+P = 10
 REQU = 1                # amount of grass a sheep needs to eat per time step
 VEG_MAX = GRID_SIZE**2  # maximum amount of vegetation
 
@@ -173,26 +174,32 @@ class Herdsman(Agent):
         N = self.model.get_herdsman_count()
         grass = self.model.get_grass_count()
         sheep = self.model.get_sheep_count()
-        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + x[self.index]) * REQU))) * P / REQU
+        cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + sum(x)) * REQU))) * P / REQU
+        add_cost_grass = sum(x) * P * (1 - grass / 1089)
+        add_cost_death = sum(x) * P * (1 - self.model.sheep_survival_rate[-1]) #* (1 - grass / 1089)
+        print('cost, add_cost grass, death, x:', cost, add_cost_grass, add_cost_death, x)
+        cost = cost + add_cost_death + add_cost_grass
 
-        return max(0, (len(self.k) + x[self.index]) * P - (cost / N))
+        return (len(self.stock) + x[self.index]) * P - (cost / N)
 
     def p_coop(self, x):
         sumA = 0
         count = 0
-        x_tmp = np.zeros(x.shape)
-        x_tmp[self.index] = x[self.index]
+        #x_tmp = np.zeros(x.shape)
+        #x_tmp[self.index] = x[self.index]
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
-                sumA += self.friendship_weights[count] * herdsman.p_basic(x_tmp)
+                sumA += self.friendship_weights[count] * herdsman.p_basic(x)
+                print('herdsman.p_basic(x):', herdsman.p_basic(x))
                 count += 1
         result = (1 - self.l_coop) * self.p_basic(x) + sumA * self.l_coop / sum(self.friendship_weights)
 
+        return result
         # if there are more sheep than can be sustained, increase the utility for selling a sheep
-        if (self.model.get_sheep_count() - 1 > self.model.get_expected_grass_growth() / .5) and x[self.index] == -1:
-            return result + self.l_coop * self.model.get_grass_count()
-        else:
-            return result
+        #if (self.model.get_sheep_count() - 1 > self.model.get_expected_grass_growth() / .5) and x[self.index] == -1:
+        #    return result + self.l_coop * self.model.get_grass_count()
+        #else:
+        #    return result
 
     def add_fair(self, x):
         sumA, sumB, sumC = 0, 0, 0
@@ -203,9 +210,9 @@ class Herdsman(Agent):
                 sumB += self.friendship_weights[count] * max(0, self.p_basic(x) - herdsman.p_basic(x))
                 sumC += herdsman.p_basic(x)
                 count += 1
-
+        print('fairness sumA,sumB,sumC, x:', sumA,sumB,sumC, x)
         return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights)) /\
-               sumC * self.p_basic(x) if sumC > 0 else 0
+               sumC * self.p_basic(x) if sumC is not 0.0 else 0
 
     def add_recip(self, x):
         sumA, sumB, sumC = 0, 0, 0
@@ -216,7 +223,7 @@ class Herdsman(Agent):
                 sumB += self.friendship_weights[count] * self.s(0, herdsman, -1)
                 sumC += self.friendship_weights[count] * self.s(1, herdsman, -1)
                 count += 1
-
+        print('add_recip sumA,B,C:', sumA, sumB, sumC)
         if x[self.index] < 0:
             return self.p_basic(x) * self.l_negrecip * (sumA + .5 * sumB) / sum(self.friendship_weights)
         elif x[self.index] > 0:
@@ -231,6 +238,7 @@ class Herdsman(Agent):
         sumA = 0
         count = 0
         for herdsman in self.model.herdsmen:
+
             if herdsman is not self:
                 for t in range(len(self.a)):
                     sumA = sumA + self.friendship_weights[count] * self.s(x[self.index], herdsman, t)
@@ -242,18 +250,23 @@ class Herdsman(Agent):
         # x is a number_of_agents-dimensional vector,
         # each element being either -1 ("sell"), 0 ("no action") or 1 ("buy")
         x = Herdsman.x
-
         x[self.index] = -1
-        a = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        y = np.zeros(x.shape)
+        y[self.index] = -1
+        a = self.p_coop(y) + self.add_fair(y) + self.add_recip(y) + self.add_conf(y)
         if len(self.stock) == 0:
             a = -float('inf')
-
+        print('a:', a, self.p_basic(y), self.p_coop(y), self.add_fair(y), self.add_recip(y), self.add_conf(y))
         x[self.index] = 0
-        b = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        y[self.index] = 0
 
+        b = self.p_coop(y) + self.add_fair(y) + self.add_recip(y) + self.add_conf(y)
+        print('b:', b, self.p_basic(y), self.p_coop(y), self.add_fair(y), self.add_recip(y), self.add_conf(y))
         x[self.index] = 1
-        c = self.p_coop(x) + self.add_fair(x) + self.add_recip(x) + self.add_conf(x)
+        y[self.index] = 1
 
+        c = self.p_coop(y) + self.add_fair(y) + self.add_recip(y) + self.add_conf(y)
+        print('c:', c, self.p_basic(y), self.p_coop(y), self.add_fair(y), self.add_recip(y), self.add_conf(y))
         x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
 
         return x[self.index]
@@ -271,6 +284,7 @@ class TotC(Model):
         self.herdsmen = []
         self.initial_herdsmen = initial_herdsmen
         self.initial_sheep_per_herdsmen = initial_sheep_per_herdsmen
+        self.sheep_survival_rate= []
 
         self.l_coop = l_coop
         self.l_fairself = l_fairself
@@ -388,7 +402,11 @@ class TotC(Model):
         Calls the step method for grass and sheep.
         """
         self.schedule_Grass.step()
+        a = self.get_sheep_count()
         self.schedule_Sheep.step()
+        b = self.get_sheep_count()
+        c = b / a if a > 0 else 0
+        self.sheep_survival_rate.append(c)
         self.schedule_Herdsman.step()
 
         # save statistics
