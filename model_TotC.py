@@ -60,6 +60,7 @@ class Sheep(Walker):
     def die(self):
         self.model.remove_agent(self)
         self.owner.stock.remove(self)
+        print('sheep died')
 
     def step(self):
         i = 0
@@ -177,7 +178,6 @@ class Herdsman(Agent):
         cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + sum(x)) * REQU))) * P / REQU
         add_cost_grass = sum(x) * P * (1 - grass / 1089)
         add_cost_death = sum(x) * P * (1 - self.model.sheep_survival_rate[-1]) #* (1 - grass / 1089)
-        print('cost, add_cost grass, death, x:', cost, add_cost_grass, add_cost_death, x)
         cost = cost + add_cost_death + add_cost_grass
 
         return (len(self.stock) + x[self.index]) * P - (cost / N)
@@ -190,7 +190,6 @@ class Herdsman(Agent):
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
                 sumA += self.friendship_weights[count] * herdsman.p_basic(x)
-                print('herdsman.p_basic(x):', herdsman.p_basic(x))
                 count += 1
         result = (1 - self.l_coop) * self.p_basic(x) + sumA * self.l_coop / sum(self.friendship_weights)
 
@@ -210,7 +209,6 @@ class Herdsman(Agent):
                 sumB += self.friendship_weights[count] * max(0, self.p_basic(x) - herdsman.p_basic(x))
                 sumC += herdsman.p_basic(x)
                 count += 1
-        print('fairness sumA,sumB,sumC, x:', sumA,sumB,sumC, x)
         return (-self.l_fairself * sumA - self.l_fairother * sumB / sum(self.friendship_weights)) /\
                sumC * self.p_basic(x) if sumC is not 0.0 else 0
 
@@ -223,7 +221,6 @@ class Herdsman(Agent):
                 sumB += self.friendship_weights[count] * self.s(0, herdsman, -1)
                 sumC += self.friendship_weights[count] * self.s(1, herdsman, -1)
                 count += 1
-        print('add_recip sumA,B,C:', sumA, sumB, sumC)
         if x[self.index] < 0:
             return self.p_basic(x) * self.l_negrecip * (sumA + .5 * sumB) / sum(self.friendship_weights)
         elif x[self.index] > 0:
@@ -256,17 +253,14 @@ class Herdsman(Agent):
         a = self.p_coop(y) + self.add_fair(y) + self.add_recip(y) + self.add_conf(y)
         if len(self.stock) == 0:
             a = -float('inf')
-        print('a:', a, self.p_basic(y), self.p_coop(y), self.add_fair(y), self.add_recip(y), self.add_conf(y))
         x[self.index] = 0
         y[self.index] = 0
 
         b = self.p_coop(y) + self.add_fair(y) + self.add_recip(y) + self.add_conf(y)
-        print('b:', b, self.p_basic(y), self.p_coop(y), self.add_fair(y), self.add_recip(y), self.add_conf(y))
         x[self.index] = 1
         y[self.index] = 1
 
         c = self.p_coop(y) + self.add_fair(y) + self.add_recip(y) + self.add_conf(y)
-        print('c:', c, self.p_basic(y), self.p_coop(y), self.add_fair(y), self.add_recip(y), self.add_conf(y))
         x[self.index] = -1 if a > b and a > c else 0 if b > c else 1
 
         return x[self.index]
