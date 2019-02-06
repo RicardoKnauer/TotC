@@ -125,6 +125,7 @@ class Herdsman(Agent):
         # truncated normal distribution of psychosocial factors
         self.l_coop = stats.truncnorm((0 - self.model.l_coop) / .1, (1 - self.model.l_coop) / .1,
                                       self.model.l_coop, scale=.1).rvs()
+        print(self.l_coop)
         self.l_fairself = stats.truncnorm((0 - self.model.l_fairself) / .1, (1 - self.model.l_fairself) / .1,
                                           self.model.l_fairself, scale=.1).rvs()
         self.l_fairother = stats.truncnorm((0 - self.model.l_fairother) / .1, (1 - self.model.l_fairother) / .1,
@@ -196,10 +197,10 @@ class Herdsman(Agent):
 
         return result
         # if there are more sheep than can be sustained, increase the utility for selling a sheep
-        #if (self.model.get_sheep_count() - 1 > self.model.get_expected_grass_growth() / .5) and x[self.index] == -1:
-        #    return result + self.l_coop * self.model.get_grass_count()
-        #else:
-        #    return result
+        if (self.model.get_sheep_count() - 1 > self.model.get_expected_grass_growth() / .5) and x[self.index] == -1:
+            return result + self.l_coop * self.model.get_grass_count()
+        else:
+            return result
 
     def add_fair(self, x):
         sumA, sumB, sumC = 0, 0, 0
@@ -297,6 +298,7 @@ class TotC(Model):
         self.schedule_Grass = RandomActivation(self)
         self.schedule_Herdsman = StagedActivation(self, stage_list=["advance", "step"], shuffle=True)
         self.schedule_Sheep = RandomActivation(self)
+        self.schedule = RandomActivation(self)
 
         self.grid = MultiGrid(self.width, self.height, torus=True)
 
@@ -405,6 +407,7 @@ class TotC(Model):
         c = b / a if a > 0 else 0
         self.sheep_survival_rate.append(c)
         self.schedule_Herdsman.step()
+        self.schedule.step()
 
         # save statistics
         self.datacollector.collect(self)
