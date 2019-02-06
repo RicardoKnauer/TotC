@@ -51,6 +51,7 @@ class Walker(Agent):
 
 
 class Sheep(Walker):
+    sheepdeaths = 0
 
     def __init__(self, unique_id, model, pos):
         super().__init__(unique_id, model, pos)
@@ -60,7 +61,7 @@ class Sheep(Walker):
     def die(self):
         self.model.remove_agent(self)
         self.owner.stock.remove(self)
-        print('sheep died')
+        Sheep.sheepdeaths += 1
 
     def step(self):
         i = 0
@@ -289,6 +290,7 @@ class TotC(Model):
 
         self.G = nx.gnm_random_graph(initial_herdsmen, initial_edges)
 
+        Sheep.sheepdeaths = 0
         Herdsman.i = 0
         Herdsman.x = np.zeros(initial_herdsmen, dtype=np.int8)
 
@@ -301,7 +303,8 @@ class TotC(Model):
         # "Grass" is the number of sheep that the grass can sustain
         self.datacollector = DataCollector(
             {"Grass": lambda m: self.get_expected_grass_growth() / .5,
-             "Sheep": lambda m: self.get_sheep_count()})
+             "Sheep": lambda m: self.get_sheep_count(),
+             "Sheep deaths": lambda m: Sheep.sheepdeaths })
 
         self.init_population()
 

@@ -72,7 +72,9 @@ grid = CanvasGrid(agent_portrayal, 33, 33, 500, 500)
 chart = ChartModule([{"Label": "Grass",
                       "Color": "green"},
                      {"Label": "Sheep",
-                      "Color": "blue"}],
+                      "Color": "blue"},
+                     {"Label": "Sheep deaths",
+                      "Color": "red"}],
                     data_collector_name='datacollector')
 
 # create  server, and pass grid and the graphs
