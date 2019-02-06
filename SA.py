@@ -8,18 +8,18 @@ import matplotlib.pyplot as plt
 from itertools import combinations
 from model_TotC import *
 
+# initial_herdsmen=5, initial_sheep_per_herdsmen=0, initial_edges=5, l_coop=0, l_fairself=0, l_fairother=0, l_negrecip=0, l_posrecip=0, l_conf=0
 problem = {
     'num_vars': 2,
-    'names': ['initial_herdsmen', 'initial_sheep_per_herdsmen'],
-    'bounds': [[1, 10], [0, 5]]
+    'names': ['initial_edges', 'l_coop', 'l_fairself', 'l_fairother', 'l_negrecip', 'l_posrecip', 'l_conf'],
+    'bounds': [[0, 20],         [0, 1],     [0, 1],     [0, 1],         [0, 1],     [0, 1],         [0,1]]
 }
 
 replicates = 10
-max_steps = 100
-distinct_samples = 20
+max_steps = 50
+distinct_samples = 10
 
-model_reporters = {"Grass": lambda m: m.get_grass_count(),
-                   "Sheep": lambda m: m.get_sheep_count()}
+model_reporters = {"Sheep deaths": lambda m: Sheep.sheepdeaths}
 
 data = {}
 
