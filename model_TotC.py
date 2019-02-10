@@ -11,19 +11,24 @@ import scipy.stats as stats
 
 
 GRID_SIZE = 33          # 33x33 grid
-GROWTH_RATE = .1       # grass regrowth rate
+GROWTH_RATE = .1        # grass regrowth rate
 MAX_STEPS = 5           # max number of steps per sheep and time step
-#P = 133                 # sheep price
-P = 10
+P = 10                  # sheep price
 REQU = 1                # amount of grass a sheep needs to eat per time step
 VEG_MAX = GRID_SIZE**2  # maximum amount of vegetation
 
 
 def g(grass):
+    """
+    Returns the new amount of grass at a patch after a timestep
+    """
     return grass + GROWTH_RATE * grass * (VEG_MAX - grass) / VEG_MAX
 
 
 class Walker(Agent):
+    """
+    Agent that performs a guided walk
+    """
 
     def __init__(self, unique_id, model, pos):
         super().__init__(unique_id, model)
@@ -32,11 +37,14 @@ class Walker(Agent):
         self.unique_id = unique_id
 
     def move(self):
+        """
+        Move to the grass agent that has the highest density in the area
+        """
         possible_steps = self.model.grid.get_neighborhood(
             self.pos,
             moore=True,
             include_center=False)
-        # select grass path with highest density
+        # Select grass path with highest density
         highest_density = 0
         best_choice = None
         for step in possible_steps:
@@ -46,11 +54,14 @@ class Walker(Agent):
                     if agent.density > highest_density:
                         highest_density = agent.density
                         best_choice = step
-        # move agent to grass path with highest density
+        # Move agent to grass path with highest density
         self.model.grid.move_agent(self, best_choice)
 
 
 class Sheep(Walker):
+    """
+    The sheep agent performs the guided walk as defined in Walker and eats grass
+    """
     sheepdeaths = 0
 
     def __init__(self, unique_id, model, pos):
@@ -64,9 +75,15 @@ class Sheep(Walker):
         Sheep.sheepdeaths += 1
 
     def step(self):
+        """
+        Lower the sheep's saturation by .5 and eat grass until the saturation
+        level is back to at least REQU. It will eat grass with a maximum of
+        MAX_STEPS times.
+        If the saturation is below REQU it will die.
+        """
         i = 0
         self.saturation -= .5
-        # sheep wander MAX_STEPS number of steps around to fulfill their food requirement
+        # Sheep wander MAX_STEPS number of steps around to fulfill their food requirement
         while i < MAX_STEPS and self.saturation < REQU:
             this_cell = self.model.grid.get_cell_list_contents([self.pos])
             for agent in this_cell:
@@ -95,6 +112,10 @@ class Grass(Agent):
         return tmp
 
     def next_density(self):
+        """
+        Calculate the density that needs to be added to the current density
+        to get a logistic growth.
+        """
         return GROWTH_RATE * self.density * (1 - self.density)
 
     def step(self):
@@ -114,18 +135,17 @@ class Herdsman(Agent):
         self.unique_id = unique_id
         self.index = Herdsman.i
 
-        # decision at each time step
+        # Decision at each time step
         self.a = []
-        # weight for social network
+        # Weight for social network
         self.friendship_weights = []
-        # number of cattle owned at each time step
+        # Number of cattle owned at each time step
         self.k = []
         self.stock = []
 
-        # truncated normal distribution of psychosocial factors
+        # Truncated normal distribution of psychosocial factors
         self.l_coop = stats.truncnorm((0 - self.model.l_coop) / .1, (1 - self.model.l_coop) / .1,
                                       self.model.l_coop, scale=.1).rvs()
-        print(self.l_coop)
         self.l_fairself = stats.truncnorm((0 - self.model.l_fairself) / .1, (1 - self.model.l_fairself) / .1,
                                           self.model.l_fairself, scale=.1).rvs()
         self.l_fairother = stats.truncnorm((0 - self.model.l_fairother) / .1, (1 - self.model.l_fairother) / .1,
@@ -137,12 +157,14 @@ class Herdsman(Agent):
         self.l_conf = stats.truncnorm((0 - self.model.l_conf) / .1, (1 - self.model.l_conf) / .1,
                                       self.model.l_conf, scale=.1).rvs()
 
+        # The next herdsman will get a higher index.
         Herdsman.i += 1
 
         for i in range(model.initial_sheep_per_herdsmen):
             self.add_sheep()
 
     def add_sheep(self):
+        """Spawn a new sheep at a random location and assign it to this herdsman"""
         x = random.randrange(self.model.width)
         y = random.randrange(self.model.height)
         sheep = self.model.new_agent(Sheep, (x, y))
@@ -150,20 +172,33 @@ class Herdsman(Agent):
         sheep.owner = self
 
     def advance(self):
+        """
+        Think of what decision to make.
+        This function gets executed before step()
+        """
         self.decision = self.decide()
 
     def remove_sheep(self):
+        """Remove one sheep from this herdsman."""
         if len(self.stock) != 0:
             sheep = self.stock.pop()
             self.model.remove_agent(sheep)
 
     def s(self, d, h, t):
-        # d : { -1, 0, 1 }
-        # h: herdsman
-        # t: time step
+        """
+        Checks if the decision made at timestep `t' is equal to `d'.
+        Same as the `s' function defined in Schindler.
+        
+        d : { -1, 0, 1 }
+        h: herdsman
+        t: time step
+        """
         return 1 if len(h.a) > 0 and h.a[t] == d else 0
 
     def step(self):
+        """
+        Perform the decision made using advance()
+        """
         if self.decision > 0:
             self.add_sheep()
         elif self.decision < 0:
@@ -174,21 +209,32 @@ class Herdsman(Agent):
 
 
     def p_basic(self, x):
+        """
+        The basic payoff for a decision list. `x' will contain the decision that
+        every herdsman makes. p basic will always return higher values if this
+        herdsman is adding sheep or other herdsmen are removing sheep.
+        It will return a lower value when other people add sheep.
+        """
         N = self.model.get_herdsman_count()
         grass = self.model.get_grass_count()
         sheep = self.model.get_sheep_count()
         cost = (g(max(0, grass - sheep * REQU)) - g(max(0, grass - (sheep + sum(x)) * REQU))) * P / REQU
         add_cost_grass = sum(x) * P * (1 - grass / 1089)
-        add_cost_death = sum(x) * P * (1 - self.model.sheep_survival_rate[-1]) #* (1 - grass / 1089)
+        add_cost_death = sum(x) * P * (1 - self.model.sheep_survival_rate[-1])
         cost = cost + add_cost_death + add_cost_grass
 
         return (len(self.stock) + x[self.index]) * P - (cost / N)
 
     def p_coop(self, x):
+        """
+        The payoff when cooperation is taken into account. When `l_coop' is
+        equal to 0 this function returns `p_basic'. When `l_coop' is 1 it will
+        return the average `p_basic' of all other players for this decision list
+        `x'. `l_coop' can be a float between 0 and 1. The social network weights
+        are also taken into account.
+        """
         sumA = 0
         count = 0
-        #x_tmp = np.zeros(x.shape)
-        #x_tmp[self.index] = x[self.index]
         for herdsman in self.model.herdsmen:
             if herdsman is not self:
                 sumA += self.friendship_weights[count] * herdsman.p_basic(x)
@@ -196,13 +242,15 @@ class Herdsman(Agent):
         result = (1 - self.l_coop) * self.p_basic(x) + sumA * self.l_coop / sum(self.friendship_weights)
 
         return result
-        # if there are more sheep than can be sustained, increase the utility for selling a sheep
-        if (self.model.get_sheep_count() - 1 > self.model.get_expected_grass_growth() / .5) and x[self.index] == -1:
-            return result + self.l_coop * self.model.get_grass_count()
-        else:
-            return result
 
     def add_fair(self, x):
+        """
+        This function will return a higher value if `l_fairself' is high and 
+        your decision will make you more equal to others, if others have more 
+        sheep than you. If `l_fairother' is high this function will return a
+        high value if you remove sheep and others have fewer sheep than you. The
+        social network weights are also taken into account.
+        """
         sumA, sumB, sumC = 0, 0, 0
         count = 0
         for herdsman in self.model.herdsmen:
@@ -215,6 +263,11 @@ class Herdsman(Agent):
                sumC * self.p_basic(x) if sumC is not 0.0 else 0
 
     def add_recip(self, x):
+        """
+        If what this herdsman does is similar to what other herdsmen did in the
+        last timestep this will return a higher value. The social network 
+        weights are also taken into account.
+        """
         sumA, sumB, sumC = 0, 0, 0
         count = 0
         for herdsman in self.model.herdsmen:
@@ -232,6 +285,11 @@ class Herdsman(Agent):
                    sum(self.friendship_weights)
 
     def add_conf(self, x):
+        """
+        If what this herdsman does is similar to what other herdsmen did on 
+        average during the simulation, this will return a higher value. The 
+        social network weights are also taken into account.
+        """
         if len(self.a) == 0:
             return 0
         sumA = 0
@@ -246,13 +304,17 @@ class Herdsman(Agent):
         return self.p_basic(x) * self.l_conf * sumA / (len(self.a) * sum(self.friendship_weights))
 
     def decide(self):
-        # x is a number_of_agents-dimensional vector,
-        # each element being either -1 ("sell"), 0 ("no action") or 1 ("buy")
+        """
+        Making a decision happens by trying out all three decisions. The
+        decision with the highest payoff gets made.
+        """
         x = Herdsman.x
         x[self.index] = -1
         y = np.zeros(x.shape)
         y[self.index] = -1
         a = self.p_coop(y) + self.add_fair(y) + self.add_recip(y) + self.add_conf(y)
+        # If a herdsman does not have any sheep it should be impossible to
+        # remove them.
         if len(self.stock) == 0:
             a = -float('inf')
         x[self.index] = 0
@@ -269,6 +331,10 @@ class Herdsman(Agent):
 
 
 class TotC(Model):
+    """
+    Main model for the tragedy of the commons
+    """
+
 
     def __init__(self, initial_herdsmen=5, initial_sheep_per_herdsmen=0, initial_edges=5, l_coop=0, l_fairself=0,
                  l_fairother=0, l_negrecip=0, l_posrecip=0, l_conf=0):
@@ -315,29 +381,36 @@ class TotC(Model):
         self.datacollector.collect(self)
 
     def add_herdsman(self):
+        """
+        At a herdsman at a random position on the grid.
+        """
         x = random.randrange(self.width)
         y = random.randrange(self.height)
         herdsman = self.new_agent(Herdsman, (x, y))
         self.herdsmen.append(herdsman)
 
     def init_grass(self):
+        """
+        Initialise a patch of grass at every square on the grid.
+        """
         for agent, x, y in self.grid.coord_iter():
             self.grass.append(self.new_agent(Grass, (x, y)))
 
     def init_herdsman(self):
+        """
+        Spawn `initial_herdsmen' herdsmen on the field.
+        """
         for i in range(getattr(self, "initial_herdsmen")):
             self.add_herdsman()
 
     def init_node_attr(self):
         """
-        Assign the unique herdsman ID as attribute to graph nodes.
+        Assign the unique herdsman ID as attribute to graph nodes for the social
+        network.
         """
         N = self.get_herdsman_count()
         for i in range(getattr(self, "initial_herdsmen")):
             for j in range(getattr(self, "initial_herdsmen")):
-                # ???????????
-                # is not... or !=
-                # ???????????
                 if i is not j:
                     if nx.has_path(self.G, source=i, target=j) == True:
                         if nx.shortest_path_length(self.G, source=i, target=j) == 1:
@@ -356,14 +429,25 @@ class TotC(Model):
                         self.herdsmen[i].friendship_weights.append(1 / N)
 
     def init_population(self):
+        """
+        Initialise grass, herdsmen, sheep, and the social network
+        """
         self.init_grass()
         self.init_herdsman()
         self.init_node_attr()
 
     def get_expected_grass_growth(self):
+        """
+        Get an estimate of the expected grass growth for the next timestep. 
+        If grass is fully grown it will return 0.0123 (the average grass growth
+        over its lifetime.
+        """
         return sum([grass.next_density() if grass.density < 0.99 else 0.0123 for grass in self.grass])
 
     def get_grass_count(self):
+        """
+        Get a sum of all grass densities.
+        """
         return sum([grass.density for grass in self.grass])
 
     def get_herdsman_count(self):
@@ -412,7 +496,3 @@ class TotC(Model):
         # save statistics
         self.datacollector.collect(self)
 
-
-# test=TotC()
-# test.run_model()
-# nx.draw(test.G, pos=nx.circular_layout(test.G), nodecolor='r', edgecolor= 'b')
